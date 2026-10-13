@@ -1,6 +1,8 @@
 """Bug 0.1.1-1: free-space installs must only ever format the partitions they created."""
 import json
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -158,6 +160,19 @@ class EngineFreeSpace(unittest.TestCase):
         e = run_partition(d, {"mode": "erase", "confirm_disk": "/dev/vda"})
         self.assertEqual((e.esp_dev, e.root_dev), ("/dev/vda2", "/dev/vda3"))
         self.assertEqual(d.formatted, ["/dev/vda2", "/dev/vda3"])
+
+
+@unittest.skipUnless(shutil.which("sgdisk"), "needs sgdisk")
+class RealTypeCodes(unittest.TestCase):
+    """The GUIDs the installer expects must be what sgdisk really writes (checked on a scratch image file)."""
+
+    def test_type_guids_match_sgdisk(self):
+        for code, guid in parts.TYPE_CODES.items():
+            with tempfile.NamedTemporaryFile() as f:
+                f.truncate(64 << 20)
+                subprocess.run(["sgdisk", "-n", "1:0:+8M", "-t", f"1:{code}", f.name], check=True, capture_output=True)
+                info = subprocess.run(["sgdisk", "-i", "1", f.name], check=True, capture_output=True, text=True).stdout
+                self.assertIn(f"Partition GUID code: {guid}", info, code)
 
 
 class Identification(unittest.TestCase):
