@@ -38,7 +38,8 @@ def old_shadow_hash(partition, user, subdir=""):
     """Read the old system's password hash for `user` (read-only mount) so the same password keeps working."""
     mnt = RUN / "shadow-probe"
     mnt.mkdir(parents=True, exist_ok=True)
-    if subprocess.run(["mount", "-o", "ro", partition, str(mnt)], capture_output=True).returncode != 0:
+    fstype = subprocess.run(["blkid", "-o", "value", "-s", "TYPE", partition], capture_output=True, text=True).stdout.strip()
+    if subprocess.run(["mount", "-o", disks.old_mount_opts(fstype), partition, str(mnt)], capture_output=True).returncode != 0:
         return None
     try:
         sh = mnt / subdir / "etc/shadow"
@@ -146,9 +147,13 @@ def quick():
         from arclight.migrate import plan as mplan
         mnt = RUN / "plan-probe"
         mnt.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["mount", "-o", "ro,noload" if t["fstype"] == "ext4" else "ro", t["partition"], str(mnt)], check=True)
+        subprocess.run(["mount", "-o", disks.old_mount_opts(t["fstype"]), t["partition"], str(mnt)], check=True)
         try:
-            src = mnt / old.get("root_subdir", "") / migrate["old_user"]["home"].lstrip("/")
+            try:
+                src = disks.old_home_in(mnt, t["partition"], t["fstype"], old.get("root_subdir", ""),
+                                        migrate["old_user"]["home"])
+            except disks.LayoutError as e:
+                raise SystemExit(f"Your files cannot be brought over automatically: {e}")
             ui.say("Measuring your home folder (this can take a few minutes for big homes)…", ui.MUTED)
             sysb = int(subprocess.run(["du", "-sxB1", "/run/archiso/airootfs"], capture_output=True, text=True).stdout.split()[0] or 0)
             plan = mplan.build(src, f"/home/{uname}", max(0, old["free"] - sysb), can_share=True)

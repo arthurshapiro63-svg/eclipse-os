@@ -33,6 +33,7 @@ from . import partitions as parts
 RUN = Path("/run/arclight-install")
 HOST = RUN / "host"        # side-by-side: the existing root partition, read-write (writes only to arclight/)
 OLD = RUN / "old"          # the old system, READ-ONLY view (all migration reads come from here)
+OLDTOP = RUN / "old-top"   # READ-ONLY view of the old partition's top level (btrfs: subvolid=5)
 ESP = RUN / "esp"
 T = Path("/mnt/arclight")  # the new system being built
 AIROOTFS = Path(os.environ.get("ARCLIGHT_AIROOTFS", "/run/archiso/airootfs"))
@@ -226,7 +227,9 @@ class Engine:
         self.mount(c["partition"], HOST, opts=opts)
         sub = c.get("old_root_subdir", "")
         old_src = HOST / sub if sub else HOST
-        # the read-only view: a bind mount remounted ro (all reads of the old system go through here)
+        # the read-only views: bind mounts remounted ro (all reads of the old system go through these)
+        self.mount(HOST, OLDTOP, bind=True)
+        self.sh(["mount", "-o", "remount,bind,ro,noatime", str(OLDTOP)])
         self.mount(old_src, OLD, bind=True)
         self.sh(["mount", "-o", "remount,bind,ro,noatime", str(OLD)])
         if (OLD / "etc/os-release").exists() or (OLD / "usr/lib/os-release").exists():
@@ -252,7 +255,7 @@ class Engine:
         sysb = int(out.split()[0]) if out else 25 * GiB
         m = self.c.get("migrate", {})
         if m.get("enabled") and not m.get("bundle") and not isinstance(m.get("plan"), dict):
-            src = OLD / m.get("from_home", f"home/{m['old_user']['name']}").lstrip("/")
+            src, _rel = self.old_home()
             plan = mplan.build(src, f"/home/{self.c['user']['name']}", max(0, self.host_free - sysb), can_share=True,
                                progress=lambda r: None)
             for it in plan.items:
@@ -375,7 +378,38 @@ class Engine:
 
     def mount_old_readonly(self):
         m = self.c["migrate"]
-        self.mount(m["source_partition"], OLD, opts="ro,noload" if m.get("source_fstype", "ext4") == "ext4" else "ro")
+        self.fstype = m.get("source_fstype", "ext4")
+        self.mount(m["source_partition"], OLDTOP, opts=disks.old_mount_opts(self.fstype))
+        sub = m.get("root_subdir", self.c.get("old_root_subdir", ""))
+        self.mount(OLDTOP / sub if sub else OLDTOP, OLD, bind=True)
+        self.sh(["mount", "-o", "remount,bind,ro", str(OLD)])
+
+    def old_home(self):
+        """The old home folder as (read-only path, path relative to the old partition's top level).
+
+        The old system's own fstab decides: a home on the root filesystem is <root subvolume>/home/<user>
+        (e.g. @/home/arthur), a separate btrfs subvolume is <subvol>/<user> (e.g. @home/arthur). Layouts
+        that cannot be reached safely from the old root partition stop the install BEFORE anything is
+        written, with the reason."""
+        if getattr(self, "_old_home", None):
+            return self._old_home
+        m = self.c["migrate"]
+        home = m.get("from_home") or f"/home/{m['old_user']['name']}"
+        side = self.c["mode"] == "side-by-side"
+        part = self.c["partition"] if side else m["source_partition"]
+        sub = self.c.get("old_root_subdir", "") if side else m.get("root_subdir", self.c.get("old_root_subdir", ""))
+        fstab = OLD / "etc/fstab"
+        try:
+            rel = disks.resolve_old_path(home, sub, fstab.read_text() if fstab.exists() else "",
+                                         disks.device_ids(part), self.fstype)
+        except disks.LayoutError as e:
+            raise InstallError(f"cannot bring over {home}: {e}. Nothing was written.")
+        src = OLDTOP / rel
+        if not src.is_dir():
+            raise InstallError(f"old home {home} not found (looked in {rel or 'the top level'} of {part})")
+        self.log(f"old home {home} is {rel} on {part}")
+        self._old_home = (src, rel)
+        return self._old_home
 
     # -- common
     def unpack(self):
@@ -603,14 +637,12 @@ class Engine:
 
     def migrate_home(self):
         m = self.c["migrate"]
-        src = OLD / m.get("from_home", f"home/{m['old_user']['name']}").lstrip("/")
         if m.get("bundle"):
             self.home.mkdir(parents=True, exist_ok=True)
             mcopy.import_bundle(m["bundle"], self.home)
             self.log("bundle imported and every file checksum verified")
         else:
-            if not src.is_dir():
-                raise InstallError(f"old home {src} not found")
+            src, home_rel = self.old_home()
             plan = mplan.Plan.from_json(json.dumps(m["plan"])) if isinstance(m.get("plan"), dict) else None
             if plan is None:
                 # measured NOW: the new system is already unpacked, so its ~25 GB are accounted for
@@ -646,13 +678,12 @@ class Engine:
             self.log(f"verified {len(copies)} items: identical")
             shares = [i for i in plan.items if i.action == "share"]
             if shares:
-                old_home_rel = str(src.relative_to(OLD))
                 lines = ["", "# Shared with the previous system (not copied, nothing moved): Arclight migration"]
                 for it in shares:
                     target = Path("/home") / self.c["user"]["name"] / it.path
                     (T / str(target).lstrip("/")).mkdir(parents=True, exist_ok=True)
                     # /host is read-only for safety; shared data needs its own read-write bind of the old path
-                    lines.append(f"/run/arclight/host-rw/{old_home_rel}/{it.path}\t{target}\tnone\tbind,nofail,"
+                    lines.append(f"/run/arclight/host-rw/{home_rel}/{it.path}\t{target}\tnone\tbind,nofail,"
                                  f"x-systemd.requires-mounts-for=/run/arclight/host-rw\t0 0")
                 with open(T / "etc/fstab", "a") as f:
                     f.write("\n".join(lines) + "\n")

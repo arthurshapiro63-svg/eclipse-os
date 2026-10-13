@@ -91,9 +91,13 @@ def probe_main(argv):
     from arclight.migrate import plan as mplan
     mnt = M.RUN / "plan-probe"
     mnt.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["mount", "-o", "ro,noload" if a.fstype == "ext4" else "ro", a.partition, str(mnt)], check=True)
+    subprocess.run(["mount", "-o", disks.old_mount_opts(a.fstype), a.partition, str(mnt)], check=True)
     try:
-        src = mnt / a.subdir / a.home.lstrip("/")
+        try:
+            src = disks.old_home_in(mnt, a.partition, a.fstype, a.subdir, a.home)
+        except disks.LayoutError as e:
+            print(f"Your files cannot be brought over automatically: {e}", file=sys.stderr)
+            return 3
         sysb = int(subprocess.run(["du", "-sxB1", "/run/archiso/airootfs"], capture_output=True, text=True).stdout.split()[0] or 0)
         plan = mplan.build(src, f"/home/{a.user}", max(0, a.free - sysb), can_share=True,
                            progress=lambda rel: print(rel, file=sys.stderr, flush=True))

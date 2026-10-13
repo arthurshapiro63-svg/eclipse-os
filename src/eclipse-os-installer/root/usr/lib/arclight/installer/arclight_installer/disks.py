@@ -49,14 +49,85 @@ def free_regions(disk):
     return regs
 
 
+class LayoutError(RuntimeError):
+    """The old system's layout is one the migration cannot handle safely (said in plain words)."""
+
+
+def old_mount_opts(fstype):
+    """Read-only mount options for an old system's partition. Btrfs is always mounted at its TOP level
+    (subvolid=5), whatever its default subvolume is, so paths are the same everywhere: probe, plan, engine."""
+    if fstype == "ext4":
+        return "ro,noload"
+    if fstype == "btrfs":
+        return "ro,subvolid=5"
+    return "ro"
+
+
+def device_ids(partition):
+    """Every way an fstab can name `partition`: UUID=, PARTUUID=, LABEL=, PARTLABEL=, paths (lower-case)."""
+    out = sh(["blkid", "-o", "export", partition], check=False)
+    ids = {partition.lower()}
+    for line in out.splitlines():
+        k, _, v = line.partition("=")
+        if k in ("UUID", "PARTUUID", "LABEL", "PARTLABEL") and v:
+            ids.add(f"{k}={v}".lower())
+            ids.add(f"/dev/disk/by-{k.lower()}/{v}".lower())
+    return ids
+
+
+def _fstab(text):
+    rows = []
+    for line in (text or "").splitlines():
+        f = line.split("#", 1)[0].split()
+        if len(f) >= 3:
+            unesc = [x.replace("\\040", " ") for x in f]
+            rows.append({"src": unesc[0].strip('"'), "mnt": unesc[1].rstrip("/") or "/", "type": unesc[2],
+                         "opts": dict((o.split("=", 1) + [""])[:2] for o in (unesc[3] if len(unesc) > 3 else "").split(","))})
+    return rows
+
+
+def resolve_old_path(path, root_subdir, fstab_text, ids, fstype):
+    """Where `path` (as the OLD system sees it, e.g. /home/arthur) lives, relative to the top level of the
+    old root partition as mounted by old_mount_opts(). Follows the old fstab:
+
+      * on the root filesystem itself        -> <root_subdir>/home/arthur   (@/home/arthur on btrfs)
+      * a btrfs subvolume of the same disk   -> <subvol>/arthur             (@home/arthur)
+      * anything else (another partition, bind mounts, subvolid= only, network) -> LayoutError."""
+    path = "/" + path.strip("/")
+    best = None
+    for r in _fstab(fstab_text):
+        if r["mnt"] == "/" or path == r["mnt"] or path.startswith(r["mnt"] + "/"):
+            if r["type"] in ("swap",) or not r["mnt"].startswith("/"):
+                continue
+            if best is None or len(r["mnt"]) > len(best["mnt"]):
+                best = r
+    if best is None or best["mnt"] == "/":
+        return "/".join(x for x in (root_subdir.strip("/"), path.strip("/")) if x)
+    where = f"{best['mnt']} (from {best['src']})"
+    if "bind" in best["opts"] or "rbind" in best["opts"] or best["type"] == "none":
+        raise LayoutError(f"{where} is a bind mount in the old system; moving files from it is not supported")
+    if best["src"].lower() not in ids:
+        raise LayoutError(f"{where} is on a different partition than the old system; "
+                          "copy those files yourself after the install (they are not touched)")
+    if best["type"] != "btrfs" or fstype != "btrfs":
+        raise LayoutError(f"{where} mounts the same {fstype} filesystem twice; this layout is not supported")
+    sub = best["opts"].get("subvol")
+    if sub is None:
+        if "subvolid" in best["opts"] and best["opts"]["subvolid"] not in ("5", "0"):
+            raise LayoutError(f"{where} is a btrfs subvolume chosen by id ({best['opts']['subvolid']}); "
+                              "give it a subvol= path in the old fstab, or copy the files yourself")
+        sub = ""   # no subvol option: the top level (or subvolid=5)
+    rest = path[len(best["mnt"]):].strip("/")
+    return "/".join(x for x in (sub.strip("/"), rest) if x)
+
+
 def probe_os(dev, fstype):
     """Mount a partition read-only and look for an installed Linux system. Returns facts or None."""
     if fstype not in ("ext4", "btrfs", "xfs", "f2fs"):
         return None
     mnt = PROBE / Path(dev).name
     mnt.mkdir(parents=True, exist_ok=True)
-    opts = "ro,noload" if fstype == "ext4" else "ro"
-    r = subprocess.run(["mount", "-o", opts, dev, str(mnt)], capture_output=True, text=True)
+    r = subprocess.run(["mount", "-o", old_mount_opts(fstype), dev, str(mnt)], capture_output=True, text=True)
     if r.returncode != 0:
         return None
     try:
@@ -167,3 +238,12 @@ def existing_loaders(esp_mount):
         for f in sorted(d.glob("*.efi")) + sorted(d.glob("*.EFI")):
             out.append({"vendor": d.name, "path": "/" + str(f.relative_to(esp_mount)).replace("/", "/")})
     return out
+
+
+def old_home_in(mnt, partition, fstype, root_subdir, home):
+    """For planners: the old home under `mnt` (old partition mounted with old_mount_opts). LayoutError if
+    the layout is not supported."""
+    fstab = mnt / root_subdir / "etc/fstab"
+    rel = resolve_old_path(home, root_subdir, fstab.read_text() if fstab.exists() else "", device_ids(partition), fstype)
+    return mnt / rel
+
