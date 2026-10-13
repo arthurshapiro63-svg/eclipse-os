@@ -12,5 +12,9 @@ passwd -d "$U" >/dev/null
 skel=/usr/share/arclight/skel; [ -d "$skel" ] || skel=/etc/skel
 cp -aT "$skel" "/home/$U"
 chown -R "$U:$U" "/home/$U"
-runuser -u "$U" -- arclight-firstrun --home "/home/$U" --offline --force || true
+# setpriv, not runuser: runuser opens a PAM login session, and pam_systemd then waits for user@1000.service,
+# which is ordered after systemd-user-sessions.service, which waits for this unit: a 2-minute deadlock that
+# only ended on a timeout. firstrun needs no login session (it worked after that timeout without one).
+setpriv --reuid "$U" --regid "$U" --init-groups --reset-env \
+    arclight-firstrun --home "/home/$U" --offline --force || true
 exit 0
