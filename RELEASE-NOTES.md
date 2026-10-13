@@ -15,8 +15,8 @@ Heads up: the AI features need an agent like Claude Code, which you install afte
 - **Moving files from an old Btrfs system used the wrong path.** Folders shared with the old system pointed outside the old root subvolume (`@`), and a separate `@home` subvolume was not followed. Paths now go through the old system's own fstab. Layouts that can't be handled safely, like a home on another partition, stop the install with a clear reason before anything is written.
 - **Failed AUR updates looked like success.** An update whose AUR part failed came back as a normal result, and the Store then said "Everything is up to date". The Store now shows which packages were updated, which were not and why, with a Retry button. `arc pkg upgrade`, Settings and Eclipse AI also report these updates as unfinished.
 - **The live USB sat for 2 minutes on "A start job is running for Eclipse OS live user".** The live setup opened a login session that waited for a unit that was waiting for it. It no longer does.
-- **The console font failed on every boot after installing.** `terminus-font` is now installed, and the installer never names a font that isn't there.
-- **The Rite (the advanced install) was missing its package config.** `/etc/arclight-rite/pacman.conf` now ships with the installer, and the ISO carries the Eclipse packages at `/opt/eclipse-repo`, as the install guide says.
+- **The console font failed on every boot after installing.** `terminus-font` is now installed, and the installer never names a font that isn't there. Console setup also retries when it races the graphics takeover early in boot.
+- **The Rite (the advanced install) was missing its package config.** `/etc/arclight-rite/pacman.conf` now ships with the installer, and the ISO carries the Eclipse packages at `/opt/eclipse-repo`, as the install guide says. The Rite's last stage can now unmount the new system: a key helper left running by `pacman-key` used to keep it busy.
 
 ## Also
 
