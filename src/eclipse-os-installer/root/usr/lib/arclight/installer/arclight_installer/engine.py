@@ -27,6 +27,7 @@ from arclight.migrate import plan as mplan, copy as mcopy   # noqa: E402
 from arclight import identity, bootcfg                       # noqa: E402
 
 from . import disks
+from . import partitions as parts
 
 RUN = Path("/run/arclight-install")
 HOST = RUN / "host"        # side-by-side: the existing root partition, read-write (writes only to arclight/)
@@ -290,51 +291,70 @@ class Engine:
 
     # -- whole disk
     def partition(self):
+        """Create the new partitions and format ONLY those. Each one is identified by its number, a fresh
+        PARTUUID and its position in the chosen free region (never by sorting device names), and checked
+        again right before it is formatted. Existing partitions are never format targets."""
         c = self.c
         disk = c["disk"]
+        label = identity.slug(c.get("os_name", "arclight"))
         if c["mode"] == "erase":
             self.log(f"ERASING {disk}")
             self.sh(["wipefs", "-af", disk])
             self.sh(["sgdisk", "--zap-all", disk])
             self.sh(["sgdisk", "-n", "1:0:+1M", "-t", "1:ef02", "-c", "1:bios", "-n", "2:0:+1G", "-t", "2:ef00", "-c",
-                     "2:EFI", "-n", "3:0:0", "-t", "3:8300", "-c", f"3:{identity.slug(c.get('os_name', 'arclight'))}", disk])
-            nums = (2, 3)
-        else:  # free space: append ESP (if none) + root into the largest free region
+                     "2:EFI", "-n", "3:0:0", "-t", "3:8300", "-c", f"3:{label}", disk])
+            before, region = {}, (0, 1 << 62)
+            wanted = {1: parts.BIOS_GUID, 2: parts.ESP_GUID, 3: parts.LINUX_GUID}
+            esp_n, root_n = 2, 3
+        else:  # free space: a new ESP (unless one was chosen) + root, inside the largest free region
             regs = disks.free_regions(disk)
             if not regs:
                 raise InstallError(f"no free space on {disk}")
+            first, last, _size = max(regs, key=lambda r: r[2])
+            region = (first, last)
+            before = parts.read_table(disk)
             existing_esp = c.get("esp")
             if existing_esp:
-                self.sh(["sgdisk", "-n", "0:0:0", "-t", "0:8300", disk])
-                nums = (None, None)
+                (root_n,) = parts.free_numbers(before, 1)
+                esp_n = None
+                self.sh(["sgdisk", "-n", f"{root_n}:{first}:{last}", "-t", f"{root_n}:8300", "-c", f"{root_n}:{label}", disk])
+                wanted = {root_n: parts.LINUX_GUID}
             else:
-                self.sh(["sgdisk", "-n", "0:0:+1G", "-t", "0:ef00", "-n", "0:0:0", "-t", "0:8300", disk])
-            nums = (None, None)
-        want = 3 if c["mode"] == "erase" else 1
-        parts = []
-        for _ in range(40):  # the kernel and udev need a moment before the new partitions appear
-            self.sh(["partprobe", disk], check=False)
-            self.sh(["udevadm", "settle"], check=False)
-            devs = json.loads(self.sh(["lsblk", "-J", "-o", "NAME,PATH,TYPE", disk]))["blockdevices"]
-            flat = []
-            for d in devs:  # lsblk nests partitions under the disk, or lists them flat, depending on columns
-                flat.append(d)
-                flat += d.get("children") or []
-            parts = sorted({p["path"] for p in flat if p.get("type") == "part"})
-            if len(parts) >= want and all(Path(p).exists() for p in parts):
-                break
-            time.sleep(0.5)
+                esp_n, root_n = parts.free_numbers(before, 2)
+                self.sh(["sgdisk", "-n", f"{esp_n}:{first}:+1G", "-t", f"{esp_n}:ef00", "-c", f"{esp_n}:EFI", disk])
+                esp_end = parts.read_table(disk)[esp_n]
+                esp_end = esp_end["start"] + esp_end["size"]
+                self.sh(["sgdisk", "-n", f"{root_n}:{esp_end}:{last}", "-t", f"{root_n}:8300", "-c", f"{root_n}:{label}", disk])
+                wanted = {esp_n: parts.ESP_GUID, root_n: parts.LINUX_GUID}
+            self.log(f"existing partitions kept as they are: {', '.join(e['node'] for e in before.values()) or 'none'}")
+        try:
+            after = parts.read_table(disk)
+            made = parts.new_partitions(before, after, wanted, region)
+            devs = parts.wait_for_devices(disk, {n: e["uuid"] for n, e in made.items()},
+                                          settle=lambda: (self.sh(["partprobe", disk], check=False),
+                                                          self.sh(["udevadm", "settle"], check=False)))
+        except parts.PartitionError as e:
+            raise InstallError(str(e))
+        protected = {e["uuid"] for e in before.values()}
+
+        def fmt(n, cmd):
+            try:
+                parts.assert_target(devs[n], made[n]["uuid"], protected)
+            except parts.PartitionError as e:
+                raise InstallError(str(e))
+            self.sh(cmd + [devs[n]])
+
+        self.root_dev = devs[root_n]
+        self.created_parts = {n: (devs[n], made[n]["uuid"]) for n in made}
+        self.log("new partitions: " + ", ".join(f"{devs[n]} ({made[n]['uuid'].lower()})" for n in sorted(made)))
+        if esp_n is not None:
+            self.esp_dev = devs[esp_n]
+            fmt(esp_n, ["mkfs.fat", "-F", "32", "-n", "EFI"])
         else:
-            raise InstallError(f"the new partitions on {disk} did not appear")
-        if c["mode"] == "erase":
-            self.esp_dev, self.root_dev = parts[1], parts[2]
-            self.sh(["mkfs.fat", "-F", "32", "-n", "EFI", self.esp_dev])
-        else:
-            self.root_dev = parts[-1]
-            self.esp_dev = c.get("esp") or parts[-2]
-            if not c.get("esp"):
-                self.sh(["mkfs.fat", "-F", "32", "-n", "EFI", self.esp_dev])
-        self.sh(["mkfs.btrfs", "-f", "-L", identity.slug(c.get("os_name", "arclight"))[:16], self.root_dev])
+            self.esp_dev = c["esp"]
+            if self.sh(["blkid", "-o", "value", "-s", "TYPE", self.esp_dev], check=False).strip() != "vfat":
+                raise InstallError(f"the chosen EFI partition {self.esp_dev} is not FAT formatted")
+        fmt(root_n, ["mkfs.btrfs", "-f", "-L", label[:16]])
         self.root_uuid = self.sh(["blkid", "-o", "value", "-s", "UUID", self.root_dev]).strip()
         self.esp_uuid = self.sh(["blkid", "-o", "value", "-s", "UUID", self.esp_dev]).strip()
 
