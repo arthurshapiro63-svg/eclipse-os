@@ -41,6 +41,12 @@ class ConsoleFont(unittest.TestCase):
         f.write_bytes(b"x")
         self.assertEqual(engmod.vconsole_conf(root, None), "KEYMAP=us\nFONT=ter-v20b\n")
 
+    def test_vconsole_setup_retries_transient_failures(self):
+        conf = ROOT / "src/eclipse-os-core/root/usr/lib/systemd/system/systemd-vconsole-setup.service.d/50-eclipse-retry.conf"
+        text = conf.read_text()
+        self.assertIn("Restart=on-failure", text)
+        self.assertRegex(text, r"StartLimitBurst=\d+")
+
     def test_terminus_font_is_installed(self):
         self.assertIn("terminus-font", (PROFILE / "packages.x86_64").read_text().split())
         self.assertIn("'terminus-font'", (ROOT / "src/eclipse-os-core/PKGBUILD").read_text())
