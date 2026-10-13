@@ -1,0 +1,63 @@
+# Midnight Blue Ghostty — default terminal. Kitty stays installed as a fallback.
+# Colours: ~/.config/ghostty/themes/rice, rendered by `theme-apply <slug>` from
+# ~/.config/theme/templates/ghostty-theme.tmpl (tokens in ~/.config/theme/tokens/).
+# Anything colour-related belongs in that template; this file is layout/behaviour.
+# Open windows keep their settings until ctrl+shift+, (reload_config).
+
+theme = rice
+
+# --- type -------------------------------------------------------------------
+font-family = "JetBrainsMono Nerd Font"
+font-size = 11
+# Ligatures on (contextual alternates + standard ligatures).
+font-feature = calt
+font-feature = liga
+# A little air between rows; box-drawing/powerline glyphs stretch with the cell.
+adjust-cell-height = 6%
+# Bold text steps up to the bright ramp (text-secondary -> text-primary, blue -> accent-bright).
+bold-color = bright
+# Never render text the same colour as its background (palette 0 on bg-base etc.).
+minimum-contrast = 1.1
+
+# --- glass ------------------------------------------------------------------
+# Eclipse tokens alpha.glass-terminal (0.64 here: the photo stays visible through the frost). Hyprland multiplies its per-app opacity
+# (0.96 focused / 0.86 unfocused) on top; gtk.css asks the compositor to blur behind it (backdrop-filter).
+background-opacity = 0.64
+# Hyprland does the blur; this only matters on compositors Ghostty can ask (KDE).
+background-blur = true
+# TUIs that paint explicit cell backgrounds (nvim, fzf, bat highlights) stay glass too.
+background-opacity-cells = true
+
+# hyprbars draws the title bar (bar_part_of_window), so no GTK CSD.
+window-decoration = false
+# GTK chrome (tabs, context menu, command palette) uses the theme's bg/fg.
+window-theme = ghostty
+window-padding-x = 14
+window-padding-y = 10
+window-padding-balance = true
+# No "80x24" box flashing while Hyprland tiles/animates the window.
+resize-overlay = never
+
+# --- splits -----------------------------------------------------------------
+# Divider/fill colours come from the theme (border-subtle / bg-sunken).
+unfocused-split-opacity = 0.78
+
+# --- cursor -----------------------------------------------------------------
+# Accent bar at the prompt (shell integration), block in full-screen apps that ask for it.
+cursor-style = bar
+cursor-style-blink = true
+mouse-hide-while-typing = true
+
+# --- behaviour --------------------------------------------------------------
+shell-integration-features = cursor,title,no-sudo,ssh-env
+confirm-close-surface = false
+copy-on-select = clipboard
+# No toast for every copy-on-select; keep the one that confirms a config reload.
+app-notifications = no-clipboard-copy,config-reload
+# Bytes, not lines (the old value 100000 was ~100 KB). ~100 MB, allocated lazily.
+scrollback-limit = 100000000
+
+# Kitty keyboard protocol and Kitty graphics protocol are built in and enabled;
+# nothing here disables them. This binding makes shift+enter insert a newline
+# for Claude Code multi-line input.
+keybind = shift+enter=text:\n

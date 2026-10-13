@@ -1,0 +1,27 @@
+{
+  "source": "matugen dynamic {{wallpaper_theme.scheme}}",
+  "color": {
+    "bg-sunken": "{{mb.bg_sunken}}",
+    "bg-base": "{{mb.bg_base}}",
+    "surface": "{{mb.surface}}",
+    "surface-raised": "{{mb.surface_raised}}",
+    "surface-hover": "{{mb.surface_hover}}",
+    "border-subtle": "{{mb.border_subtle}}",
+    "border-strong": "{{mb.border_strong}}",
+    "text-primary": "{{mb.text_primary}}",
+    "text-secondary": "{{mb.text_secondary}}",
+    "text-muted": "{{mb.text_muted}}",
+    "accent": "{{mb.accent}}",
+    "accent-bright": "{{mb.accent_bright}}",
+    "accent-dim": "{{mb.accent_dim}}",
+    "success": "{{mb.success}}",
+    "warning": "{{mb.warning}}",
+    "error": "{{mb.error}}",
+    "shadow": "{{mb.shadow}}"
+  },
+  "alpha": {
+    "shell-bar": 0.55,
+    "shell-panel": 0.62,
+    "shell-card": 0.32
+  }
+}

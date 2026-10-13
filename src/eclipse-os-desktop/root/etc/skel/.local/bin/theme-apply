@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""theme-apply — flip the whole desktop to another palette in one command.
+
+  theme-apply                 list themes, mark the active one
+  theme-apply <slug>          render every template from tokens/<slug>.json and reload consumers
+  theme-apply <slug> --dry    render to a temp dir and show what WOULD change; touch nothing
+  theme-apply --undo          restore the files the previous apply overwrote
+
+Tokens:    ~/.config/theme/tokens/<slug>.json      (one file per theme)
+Templates: ~/.config/theme/templates/*.tmpl        (one per consumer)
+
+A template starts with header lines:
+  #@ target: ~/.config/ghostty/themes/midnight-blue     (where the render is written)
+  #@ reload: pkill -USR2 -x ghostty                     (optional; run only if output changed)
+  #@ comment: ;                                          (optional; comment prefix for the stamp)
+then the body, with placeholders:
+  {{color.accent}}             -> #2F7CFF
+  {{color.accent|hex}}         -> 2F7CFF      ({{color.accent|hexl}} -> 2f7cff)
+  {{color.accent|rgb}}         -> 47,124,255
+  {{color.accent|rgba:0.68}}   -> rgba(47,124,255,0.68)
+  {{color.accent|hypr:ee}}     -> rgba(2f7cffee)
+  {{color.accent|argb:ee}}     -> ee2f7cff
+  {{alpha.glass-bar}} {{geometry.radius-lg}} {{font.ui}} {{meta.name}} ...
+Unknown placeholders are a hard error, so a typo can never write a broken config.
+Idempotent: re-applying the active theme rewrites nothing and reloads nothing.
+"""
+import json, os, re, shutil, subprocess, sys, tempfile, time
+from pathlib import Path
+
+HOME = Path.home()
+ROOT = HOME / ".config/theme"
+TOK, TPL, BAK, HOOKS = ROOT / "tokens", ROOT / "templates", ROOT / "backups", ROOT / "hooks"
+CUR = ROOT / "current"
+PH = re.compile(r"\{\{\s*([a-z0-9_-]+(?:\.[a-z0-9_-]+)+)\s*(?:\|\s*([a-z]+)(?::([^}\s]+))?)?\s*\}\}", re.I)
+
+def die(msg): print(f"theme-apply: {msg}", file=sys.stderr); sys.exit(1)
+
+def rgb(h):
+    h = h.lstrip("#")
+    if not re.fullmatch(r"[0-9a-fA-F]{6}", h): raise ValueError(f"not a #rrggbb colour: {h}")
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def lookup(tokens, path):
+    node = tokens
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node: raise KeyError(path)
+        node = node[part]
+    if isinstance(node, (dict, list)): raise KeyError(f"{path} is not a scalar")
+    return node
+
+def render(text, tokens, where):
+    def sub(m):
+        path, filt, arg = m.group(1), (m.group(2) or "").lower(), m.group(3)
+        try: v = lookup(tokens, path)
+        except KeyError as e: raise SystemExit(f"theme-apply: {where}: unknown token {e}")
+        if not filt: return str(v)
+        r, g, b = rgb(str(v))
+        h = str(v).lstrip("#")
+        if filt == "hex":  return h.upper()
+        if filt == "hexl": return h.lower()
+        if filt == "rgb":  return f"{r},{g},{b}"
+        if filt == "rgbs": return f"{r}, {g}, {b}"
+        if filt == "rgba": return f"rgba({r},{g},{b},{arg or 1})"
+        if filt == "hypr": return f"rgba({h.lower()}{(arg or 'ff').lower()})"
+        if filt == "argb": return f"{(arg or 'ff').lower()}{h.lower()}"
+        raise SystemExit(f"theme-apply: {where}: unknown filter |{filt}")
+    return PH.sub(sub, text)
+
+def parse(tpl):
+    head, body, lines = {}, [], tpl.read_text().splitlines(keepends=True)
+    i = 0
+    while i < len(lines) and lines[i].startswith("#@"):
+        k, _, v = lines[i][2:].partition(":"); head[k.strip()] = v.strip(); i += 1
+    if "target" not in head: die(f"{tpl.name}: missing '#@ target:' header")
+    return head, "".join(lines[i:])
+
+def themes():
+    return sorted(p.stem for p in TOK.glob("*.json"))
+
+def active():
+    return CUR.read_text().strip() if CUR.exists() else None
+
+def apply_dynamic(dry=False):
+    """Wallpaper-driven mode: lay down Midnight Blue as the base for consumers matugen
+    doesn't cover, point multi-palette apps at the matugen renders, then run the pipeline."""
+    base = TOK / "midnight-blue.json"
+    apply("midnight-blue", dry=dry, hooks=False)
+    if dry: return
+    CUR.write_text("dynamic\n")
+    run_hooks("dynamic", base)
+    wp = (HOME / ".cache/current-wallpaper").read_text().strip()
+    r = subprocess.run([str(HOME / ".local/bin/wallpaper-theme"), wp], capture_output=True, text=True)
+    print(f"  matugen pipeline on {Path(wp).name}: rc={r.returncode}")
+
+def apply(slug, dry=False, hooks=True):
+    if slug == "dynamic": return apply_dynamic(dry)
+    tf = TOK / f"{slug}.json"
+    if not tf.exists(): die(f"no such theme '{slug}'. Available: {', '.join(themes())}")
+    tokens = json.loads(tf.read_text())
+    tpls = sorted(TPL.glob("*.tmpl"))
+    if not tpls: die(f"no templates in {TPL}")
+    # render EVERYTHING first; if any template fails nothing is written
+    plan = []
+    for t in tpls:
+        head, body = parse(t)
+        out = render(body, tokens, t.name)
+        c = head.get("comment", "#")
+        end = " */" if c.startswith("/*") else ""
+        stamp = f"{c} Generated by theme-apply from tokens/{slug}.json via templates/{t.name}. Edit the template, not this file.{end}\n" if c != "none" else ""
+        target = Path(os.path.expanduser(head["target"]))
+        plan.append((t.name, target, stamp + out, head.get("reload")))
+    changed = [p for p in plan if not p[1].exists() or p[1].read_text() != p[2]]
+    print(f"theme: {tokens['meta']['name']} ({slug}) — {len(plan)} templates, {len(changed)} would change")
+    for name, target, _, _ in plan:
+        mark = "~" if any(target == c[1] for c in changed) else "="
+        print(f"  {mark} {name:<24} -> {target}")
+    prev = active()
+    if dry:
+        return
+    if not changed and prev == slug and hooks:
+        CUR.write_text(slug + "\n"); print("already active and up to date; nothing to do"); return
+    if not changed:
+        CUR.write_text(slug + "\n")
+        if hooks: run_hooks(slug, tf)
+        return
+    snap = BAK / time.strftime("%Y%m%d-%H%M%S")
+    snap.mkdir(parents=True, exist_ok=True)
+    manifest = []
+    for name, target, text, _ in changed:
+        if target.exists():
+            dest = snap / name
+            shutil.copy2(target, dest); manifest.append({"target": str(target), "backup": str(dest)})
+        else:
+            manifest.append({"target": str(target), "backup": None})
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(target.name + ".theme-tmp"); tmp.write_text(text); os.replace(tmp, target)
+    (snap / "manifest.json").write_text(json.dumps({"from": active(), "to": slug, "files": manifest}, indent=2))
+    CUR.write_text(slug + "\n")
+    seen = set()
+    for _, _, _, cmd in changed:
+        if cmd and cmd not in seen:
+            seen.add(cmd)
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            print(f"  reload: {cmd}  -> rc={r.returncode}{(' ' + r.stderr.strip()[:120]) if r.returncode else ''}")
+    print(f"backup of overwritten files: {snap}")
+    if hooks: run_hooks(slug, tf)
+
+def run_hooks(slug, tf):
+    """Consumers a text template can't express (e.g. DMS's JSON + IPC). Executables in
+    hooks/, run in name order with THEME_SLUG and THEME_TOKENS set."""
+    env = dict(os.environ, THEME_SLUG=slug, THEME_TOKENS=str(tf))
+    for h in sorted(HOOKS.glob("*")) if HOOKS.exists() else []:
+        # Skip backups/editor droppings: agents make `cp -p` backups (mode 755) inside hooks/,
+        # and every executable here used to run as a hook (50-dms ran twice on 2026-09-21).
+        if ".bak" in h.name or h.name.endswith(("~", ".orig", ".disabled")):
+            continue
+        if h.is_file() and os.access(h, os.X_OK):
+            r = subprocess.run([str(h)], env=env, capture_output=True, text=True)
+            out = (r.stdout.strip().splitlines() or [""])[-1][:90]
+            print(f"  hook {h.name}: rc={r.returncode} {out}{(' ERR ' + r.stderr.strip()[:120]) if r.returncode else ''}")
+
+def undo():
+    snaps = sorted(p for p in BAK.glob("*") if (p / "manifest.json").exists())
+    if not snaps: die("nothing to undo")
+    snap = snaps[-1]; m = json.loads((snap / "manifest.json").read_text())
+    for f in m["files"]:
+        t = Path(f["target"])
+        if f["backup"]: shutil.copy2(f["backup"], t)
+        elif t.exists(): t.unlink()
+        print(f"  restored {t}")
+    if m.get("from"): CUR.write_text(m["from"] + "\n")
+    shutil.move(str(snap), str(snap) + ".undone")
+    print(f"undid {snap.name} ({m['to']} -> {m.get('from')}). Re-run 'theme-apply {m.get('from')}' to reload consumers.")
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if not a:
+        print(f"{'*' if active() == 'dynamic' else ' '} {'dynamic':<16} Follow the wallpaper (matugen), hue-clamped to blue.")
+        for t in themes():
+            meta = json.loads((TOK / f"{t}.json").read_text())["meta"]
+            print(f"{'*' if t == active() else ' '} {t:<16} {meta['description']}")
+    elif a[0] in ("-h", "--help"): print(__doc__)
+    elif a[0] == "--undo": undo()
+    else: apply(a[0], dry="--dry" in a)

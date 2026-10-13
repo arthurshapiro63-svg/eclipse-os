@@ -1,0 +1,16 @@
+/* Midnight Blue — power menu */
+* {
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
+  font-size: 14px;
+}
+window {
+  background-color: rgba(10, 15, 30, 0.92);
+  border: 2px solid #2f7cff;
+  border-radius: 12px;
+}
+#outer-box { padding: 8px; }
+#input { min-height: 0; margin: 0; padding: 0; border: none; opacity: 0; font-size: 1px; }
+#scroll, #inner-box { background: transparent; }
+#entry { padding: 9px 14px; border-radius: 8px; color: #c8d6f0; }
+#entry:selected { background-color: #2f7cff; outline: none; }
+#entry:selected #text { color: #0a0f1e; font-weight: bold; }

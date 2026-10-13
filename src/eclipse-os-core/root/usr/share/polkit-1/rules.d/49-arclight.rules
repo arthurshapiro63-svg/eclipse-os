@@ -1,0 +1,7 @@
+// Arclight: members of the "arclight" group are never asked for a password by polkit
+// (mounting, NetworkManager, systemctl, power, pkexec, ...). Arthur's choice: full access, no prompts.
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("arclight")) {
+        return polkit.Result.YES;
+    }
+});

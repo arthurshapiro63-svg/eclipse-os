@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# dms-glass-run - start DankMaterialShell with the "glass" UI tree built by dms-glass-build,
+# but ONLY if that tree was built from the UI embedded in the installed /usr/bin/dms.
+# In every other case (tree missing, dms binary updated, embedded .dankrev changed) it
+# starts STOCK `dms run` and posts a warning - it never leaves you without a shell.
+#
+#   autostart (hyprland.lua):  hl.exec_cmd("@HOME@/.local/bin/dms-glass-run")
+#   manual switch:             dms kill; setsid -f ~/.local/bin/dms-glass-run
+#   extra args are passed to `dms run` (e.g. --log-file FILE)
+#   DMS_GLASS_DISABLE=1        force stock DMS
+#   DMS_GLASS_DRYRUN=1         print the decision + command instead of starting anything
+ROOT="${DMS_GLASS_ROOT:-$HOME/.local/share/dms-glass}"
+CUR="$ROOT/current"
+PATCH="${DMS_GLASS_PATCH:-$HOME/.config/dms-glass/glass.patch}"
+LOG="${XDG_STATE_HOME:-$HOME/.local/state}/dms-glass.log"; [ -n "${DMS_GLASS_DRYRUN:-}" ] && LOG=/dev/null
+DMS_BIN="$(readlink -f "$(command -v dms 2>/dev/null || echo /usr/bin/dms)")"
+mkdir -p "$(dirname "$LOG")"
+
+log() { echo "$(date -Is) $*" >> "$LOG"; }
+
+stock() {
+    local why="$1"; shift
+    log "STOCK: $why"
+    echo "dms-glass-run: $why -> starting stock DMS" >&2
+    # DMS is the notification daemon, so notify once it is up (detached; survives the exec).
+    [ -n "${DMS_GLASS_DRYRUN:-}" ] && { echo "DRYRUN: $DMS_BIN run $*"; exit 0; }
+    setsid -f bash -c 'sleep 10; notify-send -u normal -a dms-glass "DMS glass tweaks inactive" "$1 - running stock DMS. Rebuild: dms-glass-build, then: dms kill; setsid -f dms-glass-run"' _ "$why" >/dev/null 2>&1 < /dev/null || true
+    exec "$DMS_BIN" run "$@"
+}
+
+[ "${DMS_GLASS_DISABLE:-0}" = 1 ] && stock "disabled by DMS_GLASS_DISABLE" "$@"
+dir="$(readlink -f "$CUR" 2>/dev/null)"
+[ -n "$dir" ] && [ -f "$dir/shell.qml" ] && [ -f "$dir/.glass-manifest" ] \
+    || stock "glass tree missing ($CUR)" "$@"
+
+want_sha="$(sed -n 's/^dms_sha256=//p' "$dir/.glass-manifest")"
+want_rev="$(sed -n 's/^dankrev=//p' "$dir/.glass-manifest")"
+have_sha="$(sha256sum "$DMS_BIN" 2>/dev/null | cut -d' ' -f1)"
+
+[ -n "$want_sha" ] && [ "$want_sha" = "$have_sha" ] \
+    || stock "dms binary changed since the glass tree was built (DMS updated?)" "$@"
+[ -n "$want_rev" ] && grep -qaF -- "$want_rev" "$DMS_BIN" \
+    || stock "embedded UI revision is no longer $want_rev" "$@"
+# If a runtime tree for this binary is extracted, its .dankrev must match too.
+for r in /run/user/"$(id -u)"/danklinux-shell/*/.dankrev; do
+    [ -f "$r" ] || continue
+    rr="$(tr -d '[:space:]' < "$r")"
+    if grep -qaF -- "$rr" "$DMS_BIN" && [ "$rr" != "$want_rev" ]; then
+        stock "runtime .dankrev $rr differs from glass base $want_rev" "$@"
+    fi
+done
+
+if [ -f "$PATCH" ] && ! grep -qx "patch_sha256=$(sha256sum "$PATCH" | cut -d' ' -f1)" "$dir/.glass-manifest"; then
+    log "WARN: $PATCH changed since the build; running the last build. Run dms-glass-build to pick it up."
+fi
+
+log "GLASS: $DMS_BIN run -c $dir $*"
+[ -n "${DMS_GLASS_DRYRUN:-}" ] && { echo "DRYRUN: $DMS_BIN run -c $dir $*"; exit 0; }
+exec "$DMS_BIN" run -c "$dir" "$@"

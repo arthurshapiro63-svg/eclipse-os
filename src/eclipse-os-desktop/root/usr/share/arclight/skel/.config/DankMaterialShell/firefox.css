@@ -1,0 +1,138 @@
+@media -moz-pref("userChrome.theme-material") {
+  :root {
+    --md-sys-color-primary: #1b4fa8;
+    --md-sys-color-surface-tint: #1b4fa8;
+    --md-sys-color-on-primary: #ffffff;
+    --md-sys-color-primary-container: #a8c6ff;
+    --md-sys-color-on-primary-container: #0a0f1e;
+    --md-sys-color-secondary: #2f7cff;
+    --md-sys-color-on-secondary: #ffffff;
+    --md-sys-color-secondary-container: #d3ddef;
+    --md-sys-color-on-secondary-container: #0a0f1e;
+    --md-sys-color-tertiary: #2f7cff;
+    --md-sys-color-on-tertiary: #ffffff;
+    --md-sys-color-tertiary-container: #d3ddef;
+    --md-sys-color-on-tertiary-container: #0a0f1e;
+    --md-sys-color-error: #b3243f;
+    --md-sys-color-on-error: #ffffff;
+    --md-sys-color-error-container: #f9dedc;
+    --md-sys-color-on-error-container: #410e0b;
+    --md-sys-color-background: #f2f6fd;
+    --md-sys-color-on-background: #0a0f1e;
+    --md-sys-color-surface: #f2f6fd;
+    --md-sys-color-on-surface: #0a0f1e;
+    --md-sys-color-surface-variant: #d3ddef;
+    --md-sys-color-on-surface-variant: #1a2440;
+    --md-sys-color-outline: #5b6b8c;
+    --md-sys-color-outline-variant: #d3ddef;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-inverse-surface: #121b32;
+    --md-sys-color-inverse-on-surface: #e6ecfa;
+    --md-sys-color-inverse-primary: #2f7cff;
+    --md-sys-color-primary-fixed: #a8c6ff;
+    --md-sys-color-on-primary-fixed: #ffffff;
+    --md-sys-color-primary-fixed-dim: #1b4fa8;
+    --md-sys-color-on-primary-fixed-variant: #ffffff;
+    --md-sys-color-secondary-fixed: #2f7cff;
+    --md-sys-color-on-secondary-fixed: #ffffff;
+    --md-sys-color-secondary-fixed-dim: #2f7cff;
+    --md-sys-color-on-secondary-fixed-variant: #ffffff;
+    --md-sys-color-tertiary-fixed: #2f7cff;
+    --md-sys-color-on-tertiary-fixed: #ffffff;
+    --md-sys-color-tertiary-fixed-dim: #2f7cff;
+    --md-sys-color-on-tertiary-fixed-variant: #ffffff;
+    --md-sys-color-surface-dim: #dde5f4;
+    --md-sys-color-surface-bright: #e6ecf8;
+    --md-sys-color-surface-container-lowest: #f2f6fd;
+    --md-sys-color-surface-container-low: #e6ecf8;
+    --md-sys-color-surface-container: #f2f6fd;
+    --md-sys-color-surface-container-high: #f2f6fd;
+    --md-sys-color-surface-container-highest: #f2f6fd;
+
+    --m3-radius: 12px;
+    --m3-radius-sm: 10px;
+    --m3-elev-0: none;
+    --m3-elev-1: 0 1px 2px color-mix(in srgb, var(--md-sys-color-shadow) 8%, transparent), 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 6%, transparent);
+    --m3-elev-2: 0 2px 6px color-mix(in srgb, var(--md-sys-color-shadow) 10%, transparent), 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 6%, transparent);
+    --m3-elev-3: 0 11px 7px color-mix(in srgb, var(--md-sys-color-shadow) 19%, transparent), 0 13px 25px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+    --m3-elev-4: 0 14px 12px color-mix(in srgb, var(--md-sys-color-shadow) 17%, transparent), 0 20px 40px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+    --m3-elev-5: 0 17px 17px color-mix(in srgb, var(--md-sys-color-shadow) 15%, transparent), 0 27px 55px color-mix(in srgb, var(--md-sys-color-shadow) 30%, transparent);
+
+    --tab-height: 34px;
+    --urlbar-height: 38px;
+
+    --state-hover: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+    --state-press: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+
+    --focus-ring: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --md-sys-color-primary: #2f7cff;
+    --md-sys-color-surface-tint: #2f7cff;
+    --md-sys-color-on-primary: #0a0f1e;
+    --md-sys-color-primary-container: #1e5bcc;
+    --md-sys-color-on-primary-container: #e6ecfa;
+    --md-sys-color-secondary: #5a9bff;
+    --md-sys-color-on-secondary: #0a0f1e;
+    --md-sys-color-secondary-container: #1d2a4a;
+    --md-sys-color-on-secondary-container: #e6ecfa;
+    --md-sys-color-tertiary: #5a9bff;
+    --md-sys-color-on-tertiary: #0a0f1e;
+    --md-sys-color-tertiary-container: #1d2a4a;
+    --md-sys-color-on-tertiary-container: #e6ecfa;
+    --md-sys-color-error: #ff5c6e;
+    --md-sys-color-on-error: #601410;
+    --md-sys-color-error-container: #8c1d18;
+    --md-sys-color-on-error-container: #f9dedc;
+    --md-sys-color-background: #0a0f1e;
+    --md-sys-color-on-background: #e6ecfa;
+    --md-sys-color-surface: #121b32;
+    --md-sys-color-on-surface: #e6ecfa;
+    --md-sys-color-surface-variant: #1d2a4a;
+    --md-sys-color-on-surface-variant: #a8b6d4;
+    --md-sys-color-outline: #2a3a5e;
+    --md-sys-color-outline-variant: #1d2a4a;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-inverse-surface: #e6ecf8;
+    --md-sys-color-inverse-on-surface: #0a0f1e;
+    --md-sys-color-inverse-primary: #1b4fa8;
+    --md-sys-color-primary-fixed: #1e5bcc;
+    --md-sys-color-on-primary-fixed: #0a0f1e;
+    --md-sys-color-primary-fixed-dim: #2f7cff;
+    --md-sys-color-on-primary-fixed-variant: #0a0f1e;
+    --md-sys-color-secondary-fixed: #5a9bff;
+    --md-sys-color-on-secondary-fixed: #0a0f1e;
+    --md-sys-color-secondary-fixed-dim: #5a9bff;
+    --md-sys-color-on-secondary-fixed-variant: #0a0f1e;
+    --md-sys-color-tertiary-fixed: #5a9bff;
+    --md-sys-color-on-tertiary-fixed: #0a0f1e;
+    --md-sys-color-tertiary-fixed-dim: #5a9bff;
+    --md-sys-color-on-tertiary-fixed-variant: #0a0f1e;
+    --md-sys-color-surface-dim: #0a0f1e;
+    --md-sys-color-surface-bright: #26355a;
+    --md-sys-color-surface-container-lowest: #0a0f1e;
+    --md-sys-color-surface-container-low: #121b32;
+    --md-sys-color-surface-container: #121b32;
+    --md-sys-color-surface-container-high: #1d2a4a;
+    --md-sys-color-surface-container-highest: #26355a;
+
+    --m3-elev-1: 0 1px 2px color-mix(in srgb, var(--md-sys-color-shadow) 50%, transparent), 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 35%, transparent);
+    --m3-elev-2: 0 4px 10px color-mix(in srgb, var(--md-sys-color-shadow) 55%, transparent), 0 1px 3px color-mix(in srgb, var(--md-sys-color-shadow) 35%, transparent);
+    --m3-elev-3: 0 11px 7px color-mix(in srgb, var(--md-sys-color-shadow) 45%, transparent), 0 13px 25px color-mix(in srgb, var(--md-sys-color-shadow) 55%, transparent);
+    --m3-elev-4: 0 14px 12px color-mix(in srgb, var(--md-sys-color-shadow) 42%, transparent), 0 20px 40px color-mix(in srgb, var(--md-sys-color-shadow) 55%, transparent);
+    --m3-elev-5: 0 17px 17px color-mix(in srgb, var(--md-sys-color-shadow) 40%, transparent), 0 27px 55px color-mix(in srgb, var(--md-sys-color-shadow) 55%, transparent);
+
+    --state-hover: color-mix(in srgb, var(--md-sys-color-on-surface) 6%, transparent);
+    --state-press: color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent);
+  }
+}
+
+/* idk if this even works, but the suggestion in the material updated readme bricks symbols no matter how many fallbacks I add */
+:root {
+  font-family: system-ui, "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
+}

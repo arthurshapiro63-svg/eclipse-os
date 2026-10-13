@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+GenericName=Welcome to Eclipse OS
+Comment=Start here: install, ask the AI, settings and a health check
+Exec=arclight-welcome
+Icon=arclight
+Terminal=false
+Categories=System;
+Keywords=welcome;start;help;eclipse;arclight;
+StartupWMClass=dev.arclight.Welcome

@@ -1,0 +1,67 @@
+// Midnight Blue — waybar
+{
+  "layer": "top",
+  "position": "bottom",
+  "height": 36,
+  "margin-top": 8,
+  "margin-left": 10,
+  "margin-right": 10,
+  "spacing": 6,
+
+  "modules-left": ["custom/arch", "hyprland/workspaces"],
+  "modules-center": ["clock"],
+  "modules-right": ["network", "pulseaudio", "custom/power"],
+
+  "custom/arch": {
+    "format": "\uf303",
+    "tooltip": false,
+    "on-click": "pkill wofi || wofi --show drun"
+  },
+
+  "hyprland/workspaces": {
+    "format": "{icon}",
+    "format-icons": {
+      "1": "01", "2": "02", "3": "03", "4": "04", "5": "05",
+      "6": "06", "7": "07", "8": "08", "9": "09", "10": "10",
+      "special": "󰖰"
+    },
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e+1\" })'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e-1\" })'"
+  },
+
+  "clock": {
+    "format": "{:%a, %b %d  %H:%M}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "format": {
+        "months": "<span color='#5aa2ff'><b>{}</b></span>",
+        "today": "<span color='#2f7cff'><b><u>{}</u></b></span>",
+        "weekdays": "<span color='#7d8bb0'>{}</span>"
+      }
+    }
+  },
+
+  "network": {
+    "format-wifi": "󰤨  {essid}",
+    "format-ethernet": "󰈀  Wired",
+    "format-disconnected": "󰤭  Offline",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
+    "on-click": "kitty -e nmtui"
+  },
+
+  "pulseaudio": {
+    "format": "{icon}  {volume}%",
+    "format-muted": "󰝟  muted",
+    "format-icons": { "default": ["󰕿", "󰖀", "󰕾"] },
+    "scroll-step": 5,
+    "on-click": "pavucontrol",
+    "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+
+  "custom/power": {
+    "format": "⏻",
+    "tooltip": false,
+    "on-click": "~/.config/waybar/scripts/powermenu.sh"
+  }
+}

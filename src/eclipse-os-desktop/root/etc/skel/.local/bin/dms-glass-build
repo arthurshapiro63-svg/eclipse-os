@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# dms-glass-build - build the DankMaterialShell "glass" UI tree.
+#
+#   tree  = the UI tree embedded in the INSTALLED /usr/bin/dms (as extracted by a
+#           stock `dms run` into /run/user/$UID/danklinux-shell/<dankrev>/)
+#         + ~/.config/dms-glass/glass.patch   (patch -p1, --fuzz=0)
+#   into    ~/.local/share/dms-glass/<dankrev>-<patch sha12>/   (+ symlink "current")
+#
+# Fails loudly (stderr + critical notification + exit 1) if the extracted tree for the
+# installed binary is missing or if any hunk of the patch no longer applies.
+# Never touches the running shell; switch with:  dms kill; setsid -f ~/.local/bin/dms-glass-run
+#
+# After a DMS update: dms-glass-run starts STOCK dms (tree stale) -> that extracts the new
+# tree -> run dms-glass-build -> if it succeeds: dms kill; setsid -f ~/.local/bin/dms-glass-run
+set -euo pipefail
+
+PATCH="${DMS_GLASS_PATCH:-$HOME/.config/dms-glass/glass.patch}"
+OUT_ROOT="${DMS_GLASS_ROOT:-$HOME/.local/share/dms-glass}"
+DMS_BIN="$(readlink -f "$(command -v dms)")"
+RUNROOT="/run/user/$(id -u)/danklinux-shell"
+
+die() {
+    echo "dms-glass-build: ERROR: $*" >&2
+    [ -n "${DMS_GLASS_NO_NOTIFY:-}" ] || notify-send -u critical -a dms-glass "dms-glass-build failed" "$*" >/dev/null 2>&1 || true
+    exit 1
+}
+
+[ -f "$PATCH" ] || die "patch not found: $PATCH"
+[ -x "$DMS_BIN" ] || die "dms binary not found"
+command -v patch >/dev/null || die "'patch' is not installed"
+
+# Find the extracted tree whose .dankrev is embedded in the installed binary.
+src=""
+for d in "$RUNROOT"/*/; do
+    d="${d%/}"
+    [ -f "$d/.dankrev" ] && [ -f "$d/shell.qml" ] || continue
+    rev="$(tr -d '[:space:]' < "$d/.dankrev")"
+    [ -n "$rev" ] || continue
+    if grep -qaF -- "$rev" "$DMS_BIN"; then src="$d"; break; fi
+done
+[ -n "$src" ] || die "no extracted UI tree for the installed dms under $RUNROOT - start stock 'dms run' once (it extracts the tree), then re-run dms-glass-build"
+
+rev="$(tr -d '[:space:]' < "$src/.dankrev")"
+bin_sha="$(sha256sum "$DMS_BIN" | cut -d' ' -f1)"
+patch_sha="$(sha256sum "$PATCH" | cut -d' ' -f1)"
+name="$rev-${patch_sha:0:12}"
+dst="$OUT_ROOT/$name"
+mkdir -p "$OUT_ROOT"
+
+if [ -f "$dst/.glass-manifest" ] && grep -qx "dms_sha256=$bin_sha" "$dst/.glass-manifest"; then
+    echo "dms-glass-build: up to date: $dst"
+else
+    tmp="$(mktemp -d "$OUT_ROOT/.build-XXXXXX")"
+    trap 'rm -rf "$tmp" "$tmp.log"' EXIT
+    cp -aL -- "$src/." "$tmp/"
+    chmod -R u+w -- "$tmp"
+    if ! patch --dry-run --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 -d "$tmp" < "$PATCH" > "$tmp.log" 2>&1; then
+        cat "$tmp.log" >&2
+        die "glass.patch no longer applies to DMS tree $rev ($("$DMS_BIN" version 2>/dev/null | tail -1)). Rebase $PATCH against $src; stock DMS keeps running meanwhile."
+    fi
+    patch --batch --forward --fuzz=0 --no-backup-if-mismatch -p1 -d "$tmp" < "$PATCH" > "$tmp.log" 2>&1 \
+        || { cat "$tmp.log" >&2; die "patch failed after a clean dry-run (?)"; }
+    # Sanity: every file the patch touches must now carry a dms-glass marker.
+    expected="$(grep -c '^+++ ' "$PATCH")"
+    marked="$(grep -rl --include='*.qml' 'dms-glass' "$tmp" | wc -l)"
+    [ "$marked" -eq "$expected" ] || die "expected $expected patched files with a dms-glass marker, found $marked"
+    find "$tmp" \( -name '*.orig' -o -name '*.rej' \) -print -quit | grep -q . && die "stray .orig/.rej files in build"
+    cat > "$tmp/.glass-manifest" <<EOF
+dms_bin=$DMS_BIN
+dms_sha256=$bin_sha
+dankrev=$rev
+patch=$PATCH
+patch_sha256=$patch_sha
+source=$src
+built=$(date -Is)
+EOF
+    rm -rf -- "$dst"
+    mv -- "$tmp" "$dst"
+    rm -f -- "$tmp.log"
+    trap - EXIT
+    echo "dms-glass-build: built $dst ($expected files patched)"
+fi
+
+ln -sfn -- "$name" "$OUT_ROOT/current"
+echo "dms-glass-build: current -> $name"
+
+# Keep the 3 newest builds (plus whatever "current" points at).
+keep="$(readlink "$OUT_ROOT/current")"
+ls -1dt "$OUT_ROOT"/*/ 2>/dev/null | sed 's:/$::' | tail -n +4 | while read -r old; do
+    [ "$(basename "$old")" = "$keep" ] || rm -rf -- "$old"
+done

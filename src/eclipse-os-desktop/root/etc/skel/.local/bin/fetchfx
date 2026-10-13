@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+# fetchfx - fastfetch, but flying through space
+# made live on tty2 by Claude for Arthur
+
+import curses, math, random, re, subprocess, time
+
+# ---- 1. grab the static info from fastfetch ----
+def fastfetch_info():
+    out = subprocess.run(
+        ["fastfetch", "--logo", "none", "--pipe",
+         "-s", "title:os:host:kernel:cpu:gpu:shell:wm"],
+        capture_output=True, text=True).stdout
+    lines = []
+    for line in out.splitlines():
+        line = re.sub(r"\x1b\[\d+G", ": ", line)
+        line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+        line = line.replace("Window Manager", "WM")
+        if line.strip():
+            lines.append(line)
+    return lines
+
+# ---- 2. live stats, read straight from the kernel ----
+def find_cpu_temp():
+    import glob
+    for h in glob.glob("/sys/class/hwmon/hwmon*"):
+        if open(h + "/name").read().strip() == "k10temp":
+            return h + "/temp1_input"
+    return None
+
+TEMP_FILE = find_cpu_temp()
+last_cpu = None
+
+def cpu_percent():
+    global last_cpu
+    nums = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+    idle, total = nums[3] + nums[4], sum(nums)
+    if last_cpu is None:
+        last_cpu = (idle, total)
+        return 0.0
+    d_idle, d_total = idle - last_cpu[0], total - last_cpu[1]
+    last_cpu = (idle, total)
+    return 100.0 * (1 - d_idle / d_total) if d_total else 0.0
+
+def cpu_temp():
+    if not TEMP_FILE:
+        return 0.0
+    return int(open(TEMP_FILE).read()) / 1000
+
+def ram_percent():
+    info = {}
+    for line in open("/proc/meminfo"):
+        key, val = line.split(":")
+        info[key] = int(val.split()[0])
+    used = info["MemTotal"] - info["MemAvailable"]
+    return 100.0 * used / info["MemTotal"], used / 1048576, info["MemTotal"] / 1048576
+
+def uptime_text():
+    secs = int(float(open("/proc/uptime").read().split()[0]))
+    return f"{secs // 3600}h {secs // 60 % 60:02d}m {secs % 60:02d}s"
+
+def bar(pct, width=20):
+    filled = int(pct / 100 * width + 0.5)
+    return "[" + "#" * filled + "-" * (width - filled) + "]"
+
+# ---- 3. the starfield: 3D points flying at the camera ----
+class Starfield:
+    def __init__(self, count=400):
+        self.stars = [self.new_star(random.uniform(0.05, 1.0)) for _ in range(count)]
+
+    def new_star(self, z=1.0):
+        return [random.uniform(-1, 1), random.uniform(-1, 1), z]
+
+    def update(self, dt, speed):
+        for s in self.stars:
+            s[2] -= dt * speed
+            if s[2] <= 0.02:
+                s[:] = self.new_star()
+
+    def draw(self, scr, w, h):
+        cx, cy = w / 2, h / 2
+        for x, y, z in self.stars:
+            sx = int(cx + x / z * cx)
+            sy = int(cy + y / z * cy)
+            if 0 <= sx < w - 1 and 0 <= sy < h:
+                if z < 0.2:
+                    ch, attr = "@", curses.A_BOLD | curses.color_pair(1)
+                elif z < 0.4:
+                    ch, attr = "*", curses.A_BOLD | curses.color_pair(1)
+                elif z < 0.7:
+                    ch, attr = "+", curses.color_pair(2)
+                else:
+                    ch, attr = ".", curses.color_pair(3)
+                try:
+                    scr.addstr(sy, sx, ch, attr)
+                except curses.error:
+                    pass
+
+# ---- 4. the Arch logo, spinning around its middle ----
+LOGO = r"""
+                   -`
+                  .o+`
+                 `ooo/
+                `+oooo:
+               `+oooooo:
+               -+oooooo+:
+             `/:-:++oooo+:
+            `/++++/+++++++:
+           `/++++++++++++++:
+          `/+++ooooooooooooo/`
+         ./ooosssso++osssssso+`
+        .oossssso-````/ossssss+`
+       -osssssso.      :ssssssso.
+      :osssssss/        osssso+++.
+     /ossssssss/        +ssssooo/-
+   `/ossssso+/:-        -:/+osssso+-
+  `+sso+:-`                 `.-/+oso:
+ `++:.                           `-/+/
+ .`                                 `/
+""".splitlines()[1:]
+LOGO_W = max(len(l) for l in LOGO)
+
+def draw_logo(scr, top, left, angle):
+    squash = math.cos(angle)
+    mid = LOGO_W / 2
+    for row, line in enumerate(LOGO):
+        for col, ch in enumerate(line):
+            if ch == " ":
+                continue
+            if squash < 0:
+                ch = {"/": "\\", "\\": "/"}.get(ch, ch)
+            x = int(left + mid + (col - mid) * squash)
+            attr = curses.color_pair(4) | (curses.A_BOLD if abs(squash) > 0.5 else 0)
+            try:
+                scr.addstr(top + row, x, ch, attr)
+            except curses.error:
+                pass
+
+# ---- 5. glitch effect: text scrambles, then locks in ----
+JUNK = "!@#$%&*<>?/|=+ABCDEFXYZ0123456789"
+
+def glitch(text, progress):
+    done = int(len(text) * max(0.0, min(1.0, progress)))
+    return text[:done] + "".join(
+        random.choice(JUNK) if c != " " else " " for c in text[done:])
+
+def put(scr, y, x, text, attr=0):
+    try:
+        scr.addstr(y, x, text, attr)
+    except curses.error:
+        pass
+
+# ---- 6. put it all together ----
+def main(scr):
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE, -1)
+    curses.init_pair(2, curses.COLOR_CYAN, -1)
+    curses.init_pair(3, curses.COLOR_BLUE, -1)
+    curses.init_pair(4, curses.COLOR_CYAN, -1)
+    curses.init_pair(5, curses.COLOR_GREEN, -1)
+    scr.nodelay(True)
+
+    info = fastfetch_info()
+    stars = Starfield()
+    start = last = time.time()
+    live, next_stats = [], 0.0
+    cpu_percent()
+
+    while scr.getch() == -1:
+        now = time.time()
+        dt, t = now - last, now - start
+        last = now
+        h, w = scr.getmaxyx()
+
+        # warp speed at launch, then cruise
+        speed = 0.35 + 3.0 * max(0.0, 1.0 - t / 2.5)
+        stars.update(dt, speed)
+
+        if now >= next_stats:
+            cpu, temp = cpu_percent(), cpu_temp()
+            ram, used, total = ram_percent()
+            live = [
+                f"CPU use: {cpu:5.1f}%  {bar(cpu)}",
+                f"CPU temp: {temp:4.1f} C  {bar(temp)}",
+                f"RAM: {ram:5.1f}%  {bar(ram)}  {used:.1f} / {total:.1f} GiB",
+                f"Uptime: {uptime_text()}",
+            ]
+            next_stats = now + 0.5
+
+        lines = info[:1] + ["-" * len(info[0])] + info[1:] + [""] + live
+        text_w = max(len(l) for l in lines)
+        box_w = LOGO_W + text_w + 10
+        box_h = max(len(LOGO), len(lines)) + 4
+        top, left = (h - box_h) // 2, (w - box_w) // 2
+
+        scr.erase()
+        stars.draw(scr, w, h)
+
+        # the panel, blacked out so stars fly behind it
+        for y in range(box_h):
+            put(scr, top + y, left, " " * box_w)
+        edge = curses.color_pair(3) | curses.A_BOLD
+        put(scr, top, left, "+" + "=" * (box_w - 2) + "+", edge)
+        put(scr, top + box_h - 1, left, "+" + "=" * (box_w - 2) + "+", edge)
+        for y in range(1, box_h - 1):
+            put(scr, top + y, left, "|", edge)
+            put(scr, top + y, left + box_w - 1, "|", edge)
+
+        logo_top = top + (box_h - len(LOGO)) // 2
+        draw_logo(scr, logo_top, left + 3, t * 1.2)
+
+        text_left = left + LOGO_W + 7
+        text_top = top + (box_h - len(lines)) // 2
+        for i, line in enumerate(lines):
+            shown = glitch(line, t * 1.5 - i * 0.08)
+            y = text_top + i
+            if i == 0:
+                put(scr, y, text_left, shown, curses.color_pair(2) | curses.A_BOLD)
+            elif ": " in line and len(shown) == len(line):
+                cut = line.index(": ") + 1
+                put(scr, y, text_left, shown[:cut], curses.color_pair(2) | curses.A_BOLD)
+                val_attr = curses.color_pair(5 if line in live else 1)
+                put(scr, y, text_left + cut, shown[cut:], val_attr | curses.A_BOLD)
+            else:
+                put(scr, y, text_left, shown, curses.color_pair(1))
+
+        put(scr, h - 1, 2, "press any key to exit", curses.color_pair(3))
+        scr.refresh()
+        time.sleep(1 / 30)
+
+curses.wrapper(main)
+

@@ -1,0 +1,84 @@
+{
+  "_about": "Eclipse Store home page. Real Arch package names (source: repo = official Arch, aur = AUR). blurb = one short plain sentence. icon = an icon-theme name (Papirus has them all), used before the app is installed.",
+  "categories": [
+    {
+      "id": "games", "title": "Games", "sub": "Play everything: Steam, Minecraft, Epic and GOG.",
+      "apps": [
+        {"name": "steam", "title": "Steam", "source": "repo", "icon": "steam", "blurb": "Your Steam games. Most Windows games work too."},
+        {"name": "prismlauncher", "title": "Prism Launcher", "source": "repo", "icon": "org.prismlauncher.PrismLauncher", "blurb": "Minecraft with mods. Many versions side by side."},
+        {"name": "heroic-games-launcher-bin", "title": "Heroic", "source": "aur", "icon": "heroic", "blurb": "Play your Epic, GOG and Amazon games."},
+        {"name": "lutris", "title": "Lutris", "source": "repo", "icon": "lutris", "blurb": "One place for games from every store."},
+        {"name": "protonup-qt", "title": "ProtonUp-Qt", "source": "aur", "icon": "net.davidotek.pupgui2", "blurb": "Get newer Proton versions so more games run."},
+        {"name": "retroarch", "title": "RetroArch", "source": "repo", "icon": "retroarch", "blurb": "Play old console games."},
+        {"name": "supertuxkart", "title": "SuperTuxKart", "source": "repo", "icon": "supertuxkart", "blurb": "A fun kart racing game."},
+        {"name": "luanti", "title": "Luanti", "source": "repo", "icon": "minetest", "blurb": "A free block-building game, like Minecraft."}
+      ]
+    },
+    {
+      "id": "create", "title": "Create", "sub": "Make 3D, art, games, music and videos.",
+      "apps": [
+        {"name": "blender", "title": "Blender", "source": "repo", "icon": "blender", "blurb": "Make 3D models, scenes and animations."},
+        {"name": "krita", "title": "Krita", "source": "repo", "icon": "krita", "blurb": "Draw and paint, like on paper."},
+        {"name": "godot", "title": "Godot", "source": "repo", "icon": "godot", "blurb": "Make your own 2D and 3D games."},
+        {"name": "obs-studio", "title": "OBS Studio", "source": "repo", "icon": "com.obsproject.Studio", "blurb": "Record your screen or stream it live."},
+        {"name": "kdenlive", "title": "Kdenlive", "source": "repo", "icon": "kdenlive", "blurb": "Edit videos. Free and simple."},
+        {"name": "davinci-resolve", "title": "DaVinci Resolve", "source": "aur", "icon": "davinci-resolve", "blurb": "Pro video editing and colour."},
+        {"name": "gimp", "title": "GIMP", "source": "repo", "icon": "gimp", "blurb": "Edit photos and pictures."},
+        {"name": "inkscape", "title": "Inkscape", "source": "repo", "icon": "inkscape", "blurb": "Draw logos and shapes that stay sharp."},
+        {"name": "audacity", "title": "Audacity", "source": "repo", "icon": "audacity", "blurb": "Record and cut sound."}
+      ]
+    },
+    {
+      "id": "code", "title": "Code", "sub": "Editors and tools to write programs.",
+      "apps": [
+        {"name": "zed", "title": "Zed", "source": "repo", "icon": "zed", "blurb": "A very fast code editor."},
+        {"name": "code", "title": "Code - OSS", "source": "repo", "icon": "code-oss", "blurb": "The open version of VS Code."},
+        {"name": "visual-studio-code-bin", "title": "Visual Studio Code", "source": "aur", "icon": "visual-studio-code", "blurb": "Microsoft's VS Code, with its extension store."},
+        {"name": "cursor-bin", "title": "Cursor", "source": "aur", "icon": "cursor", "blurb": "A code editor with AI built in."},
+        {"name": "neovim", "title": "Neovim", "source": "repo", "icon": "nvim", "blurb": "A code editor that runs in the terminal."},
+        {"name": "jetbrains-toolbox", "title": "JetBrains Toolbox", "source": "aur", "icon": "jetbrains-toolbox", "blurb": "Get PyCharm, IntelliJ and the other JetBrains apps."},
+        {"name": "github-cli", "title": "GitHub CLI", "source": "repo", "icon": "github", "blurb": "Use GitHub from the terminal."}
+      ]
+    },
+    {
+      "id": "ai", "title": "AI", "sub": "Run AI on your own PC, or talk to Claude.",
+      "apps": [
+        {"name": "ollama", "title": "Ollama", "source": "repo", "icon": "ollama", "blurb": "Run AI models on your own PC."},
+        {"name": "claude-desktop", "title": "Claude Desktop", "source": "aur", "icon": "claude", "blurb": "The official Claude app from Anthropic."},
+        {"name": "claude-code", "title": "Claude Code", "source": "aur", "icon": "utilities-terminal", "blurb": "Claude as a coding helper in the terminal."},
+        {"name": "openai-codex", "title": "Codex", "source": "repo", "icon": "utilities-terminal", "blurb": "OpenAI's coding helper in the terminal."},
+        {"name": "alpaca-ai", "title": "Alpaca", "source": "aur", "icon": "com.jeffser.Alpaca", "blurb": "A friendly chat window for local AI models."},
+        {"name": "lmstudio-bin", "title": "LM Studio", "source": "aur", "icon": "lmstudio", "blurb": "Find, download and chat with AI models."},
+        {"name": "jan-bin", "title": "Jan", "source": "aur", "icon": "jan", "blurb": "A private AI chat app that works offline."}
+      ]
+    },
+    {
+      "id": "internet", "title": "Internet", "sub": "Browse, chat and share.",
+      "apps": [
+        {"name": "zen-browser-bin", "title": "Zen Browser", "source": "aur", "icon": "zen-browser", "blurb": "A calm, private web browser."},
+        {"name": "firefox", "title": "Firefox", "source": "repo", "icon": "firefox", "blurb": "The free web browser."},
+        {"name": "chromium", "title": "Chromium", "source": "repo", "icon": "chromium", "blurb": "Google Chrome, without the Google account."},
+        {"name": "discord", "title": "Discord", "source": "repo", "icon": "discord", "blurb": "Chat and talk with friends while you play."},
+        {"name": "thunderbird", "title": "Thunderbird", "source": "repo", "icon": "thunderbird", "blurb": "Read and send email."},
+        {"name": "telegram-desktop", "title": "Telegram", "source": "repo", "icon": "telegram", "blurb": "Fast chat app on phone and PC."},
+        {"name": "signal-desktop", "title": "Signal", "source": "repo", "icon": "signal-desktop", "blurb": "Private messages and calls."},
+        {"name": "localsend-bin", "title": "LocalSend", "source": "aur", "icon": "localsend", "blurb": "Send files to your phone or iPad. No cable."},
+        {"name": "qbittorrent", "title": "qBittorrent", "source": "repo", "icon": "qbittorrent", "blurb": "Download big files with torrents."}
+      ]
+    },
+    {
+      "id": "tools", "title": "Tools", "sub": "Handy helpers for every day.",
+      "apps": [
+        {"name": "btop", "title": "btop", "source": "repo", "icon": "btop", "blurb": "See what uses your CPU, memory and disk."},
+        {"name": "vlc", "title": "VLC", "source": "repo", "icon": "vlc", "blurb": "Plays every video and music file."},
+        {"name": "mpv", "title": "mpv", "source": "repo", "icon": "mpv", "blurb": "A small, fast video player."},
+        {"name": "obsidian", "title": "Obsidian", "source": "repo", "icon": "obsidian", "blurb": "Notes that link to each other."},
+        {"name": "libreoffice-fresh", "title": "LibreOffice", "source": "repo", "icon": "libreoffice-main", "blurb": "Documents, sheets and slides. Opens Word files."},
+        {"name": "keepassxc", "title": "KeePassXC", "source": "repo", "icon": "keepassxc", "blurb": "Keep all your passwords safe in one place."},
+        {"name": "gparted", "title": "GParted", "source": "repo", "icon": "gparted", "blurb": "See and change the parts of your disks."},
+        {"name": "spotify-launcher", "title": "Spotify", "source": "repo", "icon": "spotify", "blurb": "Listen to music."},
+        {"name": "cowsay", "title": "cowsay", "source": "repo", "icon": "utilities-terminal", "blurb": "A cow that says your words in the terminal. Just for fun."}
+      ]
+    }
+  ]
+}

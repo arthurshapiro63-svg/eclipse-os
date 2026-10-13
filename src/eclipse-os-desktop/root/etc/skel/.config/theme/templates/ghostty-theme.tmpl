@@ -1,0 +1,46 @@
+#@ target: ~/.config/ghostty/themes/rice
+#@ comment: #
+# {{meta.name}} — generated from ~/.config/theme/tokens/{{meta.slug}}.json
+# Base, grey-blue text ramp, one saturated accent (#{{color.accent|hex}}).
+# Glass alpha (background-opacity) lives in ~/.config/ghostty/config.
+
+background = #{{color.bg-base|hex}}
+foreground = #{{color.text-secondary|hex}}
+
+# The cursor is the ONE accented thing on this surface: the sun (Eclipse: golden corona).
+cursor-color = #{{sun.gold|hex}}
+cursor-text  = #{{color.bg-sunken|hex}}
+
+# Selection: the accent's dim step, text lifts to text-primary.
+selection-background = #{{color.accent-dim|hex}}
+selection-foreground = #{{color.text-primary|hex}}
+
+# Search (ctrl+shift+f): candidates in the raised surface, the current hit in warning.
+search-background          = #{{color.surface-hover|hex}}
+search-foreground          = #{{color.text-primary|hex}}
+search-selected-background = #{{sun.gold|hex}}
+search-selected-foreground = #{{color.bg-sunken|hex}}
+
+# Splits: hairline divider, unfocused panes sink toward bg-sunken.
+split-divider-color  = #{{color.border-subtle|hex}}
+unfocused-split-fill = #{{color.bg-sunken|hex}}
+
+# --- ANSI 0-7 (normal) ---
+palette = 0=#{{color.surface|hex}}
+palette = 1=#{{color.error|hex}}
+palette = 2=#{{color.success|hex}}
+palette = 3=#{{ansi.yellow|hex}}
+palette = 4=#{{color.accent|hex}}
+palette = 5=#{{ansi.magenta|hex}}
+palette = 6=#{{ansi.cyan|hex}}
+palette = 7=#{{color.text-secondary|hex}}
+
+# --- ANSI 8-15 (bright) ---
+palette = 8=#{{color.border-strong|hex}}
+palette = 9=#{{ansi.bright-red|hex}}
+palette = 10=#{{ansi.bright-green|hex}}
+palette = 11=#{{ansi.bright-yellow|hex}}
+palette = 12=#{{color.accent-bright|hex}}
+palette = 13=#{{ansi.bright-magenta|hex}}
+palette = 14=#{{ansi.bright-cyan|hex}}
+palette = 15=#{{color.text-primary|hex}}

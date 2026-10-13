@@ -1,0 +1,66 @@
+#@ target: ~/.config/btop/themes/rice.theme
+#@ comment: #
+# {{meta.name}} btop theme -- generated from ~/.config/theme/tokens/{{meta.slug}}.json
+# main_bg is only used if theme_background = True (btop.conf keeps it False = the
+# terminal's glass shows through). Boxes are hairlines; the accent marks hotkeys and
+# the process you select; graphs run the glow ramp (tokens glow.*: the wallpaper's blue -> cyan).
+theme[main_bg]="#{{color.bg-base|hex}}"
+theme[main_fg]="#{{color.text-secondary|hex}}"
+theme[title]="#{{color.text-primary|hex}}"
+theme[hi_fg]="#{{color.accent-bright|hex}}"
+theme[selected_bg]="#{{color.accent-dim|hex}}"
+theme[selected_fg]="#{{color.text-primary|hex}}"
+theme[inactive_fg]="#{{color.text-muted|hex}}"
+theme[graph_text]="#{{color.text-muted|hex}}"
+theme[meter_bg]="#{{color.surface-raised|hex}}"
+theme[proc_misc]="#{{glow.high|hex}}"
+
+# Box outlines: one hairline weight everywhere, dividers a step quieter.
+theme[cpu_box]="#{{color.border-strong|hex}}"
+theme[mem_box]="#{{color.border-strong|hex}}"
+theme[net_box]="#{{color.border-strong|hex}}"
+theme[proc_box]="#{{color.border-strong|hex}}"
+theme[div_line]="#{{color.border-subtle|hex}}"
+
+# Temperature is the one semantic ramp: cool -> warning -> error.
+theme[temp_start]="#{{glow.high|hex}}"
+theme[temp_mid]="#{{color.warning|hex}}"
+theme[temp_end]="#{{color.error|hex}}"
+
+# CPU / process load: accent-dim -> accent -> glow.high (cyan in Midnight Blue).
+theme[cpu_start]="#{{color.accent-dim|hex}}"
+theme[cpu_mid]="#{{color.accent|hex}}"
+theme[cpu_end]="#{{glow.high|hex}}"
+theme[process_start]="#{{color.accent-dim|hex}}"
+theme[process_mid]="#{{color.accent-bright|hex}}"
+theme[process_end]="#{{glow.peak|hex}}"
+
+# Memory: quiet grey-blue ramps for free/cached/available, accent for used (error when full).
+theme[free_start]="#{{color.border-subtle|hex}}"
+theme[free_mid]="#{{color.text-muted|hex}}"
+theme[free_end]="#{{color.text-secondary|hex}}"
+theme[cached_start]="#{{color.border-subtle|hex}}"
+theme[cached_mid]="#{{color.text-muted|hex}}"
+theme[cached_end]="#{{color.text-secondary|hex}}"
+theme[available_start]="#{{color.border-subtle|hex}}"
+theme[available_mid]="#{{color.text-muted|hex}}"
+theme[available_end]="#{{color.text-secondary|hex}}"
+theme[used_start]="#{{color.accent-dim|hex}}"
+theme[used_mid]="#{{color.accent|hex}}"
+theme[used_end]="#{{color.error|hex}}"
+
+# Network: download in the blue ramp, upload in cyan so the two graphs read apart.
+theme[download_start]="#{{color.accent-dim|hex}}"
+theme[download_mid]="#{{color.accent|hex}}"
+theme[download_end]="#{{color.accent-bright|hex}}"
+theme[upload_start]="#{{color.border-strong|hex}}"
+theme[upload_mid]="#{{glow.high|hex}}"
+theme[upload_end]="#{{glow.peak|hex}}"
+
+# Process box banners (pause / follow) and the followed process.
+theme[proc_pause_bg]="#{{color.warning|hex}}"
+theme[proc_follow_bg]="#{{color.accent-dim|hex}}"
+theme[proc_banner_bg]="#{{color.surface-raised|hex}}"
+theme[proc_banner_fg]="#{{color.text-primary|hex}}"
+theme[followed_bg]="#{{color.accent-dim|hex}}"
+theme[followed_fg]="#{{color.text-primary|hex}}"

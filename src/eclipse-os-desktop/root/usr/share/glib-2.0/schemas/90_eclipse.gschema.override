@@ -1,0 +1,8 @@
+# Eclipse OS defaults for GTK apps on Wayland (they read GSettings, not settings.ini). A user's own choices
+# still win; this only sets what a fresh account starts with.
+[org.gnome.desktop.interface]
+icon-theme='Papirus-Dark'
+gtk-theme='adw-gtk3-dark'
+color-scheme='prefer-dark'
+cursor-theme='phinger-cursors-light'
+font-name='Inter 11'

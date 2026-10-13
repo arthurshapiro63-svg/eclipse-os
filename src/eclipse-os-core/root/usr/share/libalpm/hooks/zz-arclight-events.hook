@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Recording the transaction in the Arclight event log...
+When = PostTransaction
+Exec = /usr/lib/arclight/pkg-event
+NeedsTargets

@@ -1,0 +1,417 @@
+#@ target: ~/.config/gtk-3.0/gtk.css
+#@ comment: /*
+/* {{meta.name}} glass overrides for adw-gtk3-dark (GTK3). Selection, focus and progress use the theme sun colour. Rendered by theme-apply; edit the template. */
+@define-color accent_color {{sun.gold-soft}};
+@define-color accent_bg_color {{sun.gold}};
+@define-color accent_fg_color {{sun.on}};
+@define-color destructive_color {{color.error}};
+@define-color destructive_bg_color {{color.error}};
+@define-color destructive_fg_color white;
+@define-color error_color {{color.error}};
+@define-color error_bg_color {{color.error}};
+@define-color error_fg_color white;
+@define-color warning_color {{color.warning}};
+@define-color warning_bg_color {{color.warning}};
+@define-color warning_fg_color rgba(0,0,0,0.8);
+@define-color success_color {{color.success}};
+@define-color success_bg_color {{color.success}};
+@define-color success_fg_color white;
+@define-color window_bg_color {{color.bg-base}};
+@define-color window_fg_color {{color.text-primary}};
+@define-color view_bg_color {{color.bg-sunken}};
+@define-color view_fg_color {{color.text-primary}};
+@define-color headerbar_bg_color {{color.surface}};
+@define-color headerbar_fg_color {{color.text-primary}};
+@define-color headerbar_backdrop_color {{color.surface}};
+@define-color headerbar_border_color {{color.border-subtle}};
+@define-color headerbar_shade_color rgba({{color.shadow|rgb}},0.36);
+@define-color headerbar_darker_shade_color rgba({{color.shadow|rgb}},0.9);
+@define-color sidebar_bg_color {{color.surface}};
+@define-color sidebar_fg_color {{color.text-primary}};
+@define-color sidebar_backdrop_color {{color.surface}};
+@define-color sidebar_border_color {{color.border-subtle}};
+@define-color sidebar_shade_color rgba({{color.shadow|rgb}},0.25);
+@define-color card_bg_color {{color.surface-raised}};
+@define-color card_fg_color {{color.text-primary}};
+@define-color card_shade_color rgba({{color.shadow|rgb}},0.36);
+@define-color popover_bg_color rgba({{color.surface|rgb}},0.96);
+@define-color popover_fg_color {{color.text-primary}};
+@define-color popover_shade_color rgba({{color.shadow|rgb}},0.25);
+@define-color dialog_bg_color {{color.surface}};
+@define-color dialog_fg_color {{color.text-primary}};
+@define-color thumbnail_bg_color {{color.surface-raised}};
+@define-color thumbnail_fg_color {{color.text-primary}};
+@define-color shade_color rgba({{color.shadow|rgb}},0.36);
+@define-color scrollbar_outline_color rgba({{color.shadow|rgb}},0.5);
+@define-color borders {{color.border-subtle}};
+@define-color unfocused_borders @borders;
+@define-color theme_bg_color @window_bg_color;
+@define-color theme_fg_color @window_fg_color;
+@define-color theme_base_color @view_bg_color;
+@define-color theme_text_color @view_fg_color;
+@define-color theme_selected_bg_color @accent_bg_color;
+@define-color theme_selected_fg_color @accent_fg_color;
+@define-color theme_unfocused_bg_color @window_bg_color;
+@define-color theme_unfocused_fg_color @window_fg_color;
+@define-color theme_unfocused_base_color @view_bg_color;
+@define-color theme_unfocused_text_color @view_fg_color;
+@define-color theme_unfocused_selected_bg_color @accent_bg_color;
+@define-color theme_unfocused_selected_fg_color @accent_fg_color;
+@define-color insensitive_fg_color {{color.text-muted}};
+@define-color insensitive_bg_color @window_bg_color;
+@define-color insensitive_base_color @view_bg_color;
+@define-color unfocused_insensitive_color @insensitive_fg_color;
+@define-color content_view_bg @view_bg_color;
+@define-color text_view_bg @view_bg_color;
+@define-color panel_bg_color @window_bg_color;
+@define-color panel_fg_color @window_fg_color;
+
+/* Window fill comes from @window_bg_color via the theme (no USER-priority window rule: it would
+   override wofi's own translucent window, whose --style loads at a lower priority than this file).
+   #input / #entry are wofi's widget names; they are excluded below for the same reason. */
+window.dialog, dialog, messagedialog {
+  background-color: @dialog_bg_color;
+  color: @dialog_fg_color;
+}
+list > row.activatable:hover:not(:selected) {
+  background-color: {{color.surface-hover}};
+}
+.view:selected, iconview:selected, treeview:selected,
+.view text:selected, iconview text:selected,
+list > row:selected, flowboxchild:not(#entry):selected {
+  background-color: {{color.accent-dim}};
+  background-image: none;
+  box-shadow: inset 0 0 0 1px rgba({{sun.gold|rgb}},0.55);
+  color: {{color.text-primary}};
+}
+selection, .view text:selected:focus {
+  background-color: rgba({{sun.gold|rgb}},0.35);
+  color: {{color.text-primary}};
+}
+
+/* Raised bars retain their fill in backdrop. */
+headerbar, menubar, toolbar, searchbar, actionbar {
+  background-color: @headerbar_bg_color;
+  background-image: none;
+  color: @headerbar_fg_color;
+  border-bottom: {{geometry.hairline}}px solid @borders;
+  box-shadow: inset 0 1px rgba({{color.text-primary|rgb}},0.06);
+}
+headerbar:backdrop, menubar:backdrop, toolbar:backdrop,
+searchbar:backdrop, actionbar:backdrop {
+  background-color: @headerbar_backdrop_color;
+  color: @headerbar_fg_color;
+}
+searchbar > revealer > box, actionbar > revealer > box {
+  background-color: @headerbar_bg_color;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+statusbar, .thunar statusbar {
+  background-color: @headerbar_bg_color;
+  color: @headerbar_fg_color;
+  border-top: {{geometry.hairline}}px solid @borders;
+}
+
+/* Sidebars, including Thunar's tree and GtkFileChooser's places list. */
+.sidebar, placessidebar, .shortcuts-pane,
+.sidebar treeview, .sidebar list, placessidebar list,
+.shortcuts-pane treeview, .thunar .shortcuts-pane {
+  background-color: @sidebar_bg_color;
+  background-image: none;
+  color: @sidebar_fg_color;
+}
+.sidebar, placessidebar, .shortcuts-pane {
+  border-right: {{geometry.hairline}}px solid @sidebar_border_color;
+}
+.sidebar:dir(rtl), placessidebar:dir(rtl), .shortcuts-pane:dir(rtl) {
+  border-right-width: 0;
+  border-left: {{geometry.hairline}}px solid @sidebar_border_color;
+}
+.sidebar row, placessidebar row {
+  border-radius: {{geometry.radius-sm}}px;
+}
+.sidebar row.activatable:hover:not(:selected),
+placessidebar row.activatable:hover:not(:selected) {
+  background-color: {{color.surface-hover}};
+}
+treeview.sidebar:selected, .sidebar treeview:selected,
+treeview.shortcuts-pane:selected, .shortcuts-pane treeview:selected,
+.sidebar row:selected, placessidebar row:selected {
+  background-color: {{color.accent-dim}};
+  box-shadow: inset 0 0 0 1px rgba({{sun.gold|rgb}},0.50);
+  background-image: none;
+  color: @sidebar_fg_color;
+}
+
+/* Breadcrumb containers and location entries use the sunken surface. */
+pathbar, .path-bar {
+  background-color: @view_bg_color;
+  background-image: none;
+  color: @view_fg_color;
+  border: {{geometry.hairline}}px solid @borders;
+  border-radius: {{geometry.radius-md}}px;
+}
+
+/* adw-gtk3 derives separators and frame lines from currentColor (a neutral grey-navy); use the token hairline. */
+separator {
+  background-color: @borders;
+}
+paned > separator {
+  background-color: transparent;
+  background-image: image(@borders);
+}
+frame > border, .frame {
+  border-color: @borders;
+}
+
+/* Cards and boxed preference lists. */
+.card, list.boxed-list {
+  background-color: @card_bg_color;
+  background-image: none;
+  color: @card_fg_color;
+  border: {{geometry.hairline}}px solid @borders;
+  border-radius: {{geometry.radius-md}}px;
+}
+.card list {
+  background-color: @card_bg_color;
+}
+list.boxed-list > row:hover:not(:selected), .card row:hover:not(:selected) {
+  background-color: {{color.surface-hover}};
+}
+
+/* Buttons: preserve theme dimensions and glyphs. */
+button {
+  background-color: @card_bg_color;
+  background-image: none;
+  color: @window_fg_color;
+  box-shadow: inset 0 {{geometry.hairline}}px rgba({{color.text-primary|rgb}},0.06);
+}
+button.flat, button.titlebutton {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+button:hover {
+  background-color: {{color.surface-hover}};
+}
+button:active {
+  background-color: {{color.accent-dim}};
+  color: white;
+}
+/* Toggled state is neutral, as in libadwaita; accent stays for selection and suggested actions. */
+button:checked {
+  background-color: {{color.surface-hover}};
+  color: @window_fg_color;
+}
+/* libadwaita keeps bar buttons flat; match it so GTK3 dialogs (portal file chooser) sit beside GTK4 apps. */
+headerbar button:not(.suggested-action):not(.destructive-action):not(.titlebutton):not(:hover):not(:active):not(:checked) {
+  background-color: transparent;
+  box-shadow: none;
+}
+button.suggested-action {
+  background-color: @accent_bg_color;
+  border-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+button.suggested-action:hover {
+  background-color: {{sun.gold-soft}};
+  border-color: {{sun.gold-soft}};
+}
+button.suggested-action:active, button.suggested-action:checked {
+  background-color: {{sun.gold-deep}};
+  border-color: {{sun.gold-deep}};
+}
+button.destructive-action {
+  background-color: @destructive_bg_color;
+  border-color: @destructive_bg_color;
+  color: @destructive_fg_color;
+}
+button.destructive-action:hover {
+  background-color: mix(@destructive_bg_color,white,0.12);
+}
+button.destructive-action:active {
+  background-color: mix(@destructive_bg_color,{{color.shadow}},0.18);
+}
+button.circular, button.pill {
+  border-radius: {{geometry.radius-pill}}px;
+}
+
+/* Entries and keyboard focus. */
+entry:not(#input), spinbutton:not(.vertical) {
+  background-color: @view_bg_color;
+  background-image: none;
+  color: @view_fg_color;
+  caret-color: @view_fg_color;
+  border-color: @borders;
+}
+spinbutton:not(.vertical) entry {
+  border-color: transparent;
+}
+:focus {
+  outline-color: rgba({{sun.gold|rgb}},0.65);
+}
+button:focus, entry:not(#input):focus, spinbutton:focus, row:focus,
+checkbutton:focus, radiobutton:focus, switch:focus, scale:focus {
+  outline: 2px solid rgba({{sun.gold|rgb}},0.65);
+  outline-offset: -2px;
+}
+entry:not(#input):focus, spinbutton:focus:not(.vertical) {
+  border-color: @accent_bg_color;
+  box-shadow: inset 0 0 0 {{geometry.hairline}}px rgba({{sun.gold|rgb}},0.5);
+}
+
+/* Keep native check/radio marks; recolour their existing nodes. */
+check, radio, switch {
+  background-color: @card_bg_color;
+  background-image: none;
+  border-color: {{color.border-strong}};
+  color: @window_fg_color;
+}
+check:checked, check:indeterminate,
+radio:checked, radio:indeterminate, switch:checked {
+  background-color: @accent_bg_color;
+  border-color: @accent_bg_color;
+  color: white;
+}
+switch slider {
+  background-color: {{color.text-primary}};
+  background-image: none;
+}
+scale trough, progressbar trough {
+  background-color: @card_bg_color;
+  background-image: none;
+  border-color: @borders;
+}
+scale highlight, progressbar progress {
+  background-color: @accent_bg_color;
+  background-image: none;
+  border-color: @accent_bg_color;
+}
+scale slider {
+  background-color: {{color.text-primary}};
+  background-image: none;
+}
+
+/* Preserve overlay state, hit areas and theme scrollbar transitions. */
+scrollbar, scrollbar trough {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+scrollbar slider {
+  background-color: rgba({{color.text-muted|rgb}},0.35);
+  background-image: none;
+  border-color: transparent;
+  border-radius: {{geometry.radius-pill}}px;
+  box-shadow: none;
+}
+scrollbar slider:hover, scrollbar slider:active {
+  background-color: rgba({{color.text-muted|rgb}},0.6);
+}
+
+/* Notebook underline follows the tab position. */
+notebook > header {
+  background-color: @headerbar_bg_color;
+  background-image: none;
+}
+notebook > header.top {
+  border-bottom: {{geometry.hairline}}px solid @borders;
+}
+notebook > header tab {
+  color: {{color.text-secondary}};
+  background-image: none;
+}
+notebook > header tab:checked {
+  color: @window_fg_color;
+  background-color: @headerbar_bg_color;
+  box-shadow: inset 0 -2px @accent_bg_color;
+}
+notebook > header.bottom tab:checked { box-shadow: inset 0 2px @accent_bg_color; }
+notebook > header.left tab:checked { box-shadow: inset -2px 0 @accent_bg_color; }
+notebook > header.right tab:checked { box-shadow: inset 2px 0 @accent_bg_color; }
+
+/* One translucent popup surface; GTK3 draws its own popover arrow. */
+popover.background {
+  background-color: @popover_bg_color;
+  background-image: none;
+  color: @popover_fg_color;
+  border: {{geometry.hairline}}px solid @borders;
+  border-radius: {{geometry.radius-md}}px;
+  box-shadow: 0 4px 16px rgba({{color.shadow|rgb}},0.55);
+}
+menu, .menu, .context-menu {
+  background-color: @popover_bg_color;
+  background-image: none;
+  color: @popover_fg_color;
+  border-color: @borders;
+}
+.csd menu, .csd .menu, .csd .context-menu {
+  border-radius: {{geometry.radius-md}}px;
+}
+.csd.popup decoration {
+  border-radius: {{geometry.radius-md}}px;
+  box-shadow: 0 4px 12px rgba({{color.shadow|rgb}},0.55),
+              0 0 0 {{geometry.hairline}}px @borders;
+}
+popover list {
+  background-color: transparent;
+}
+menuitem, modelbutton {
+  color: @popover_fg_color;
+  border-radius: {{geometry.radius-sm}}px;
+}
+menuitem:hover, menuitem:selected, modelbutton:hover, modelbutton:selected {
+  background-color: {{color.surface-hover}};
+  background-image: none;
+  color: @popover_fg_color;
+}
+menu separator, popover separator {
+  background-color: @borders;
+  border-color: @borders;
+  min-height: {{geometry.hairline}}px;
+}
+
+/* Secondary and insensitive text; primary labels inherit. */
+.dim-label, .subtitle, .sidebar .heading, placessidebar .heading {
+  color: {{color.text-secondary}};
+  opacity: 1;
+}
+:link, button:link {
+  color: {{sun.gold-soft}};
+}
+:visited, button:visited {
+  color: {{ansi.magenta}};
+}
+button:link, button:visited {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+:disabled, label:disabled {
+  color: @insensitive_fg_color;
+}
+button:disabled {
+  background-color: @insensitive_bg_color;
+  color: @insensitive_fg_color;
+}
+button.flat:disabled, button.titlebutton:disabled {
+  background-color: transparent;
+}
+entry:disabled, spinbutton:disabled {
+  color: @insensitive_fg_color;
+}
+tooltip, tooltip.background {
+  background-color: rgba({{color.surface-raised|rgb}},0.92);
+  background-image: none;
+  color: @window_fg_color;
+  border: {{geometry.hairline}}px solid rgba({{color.border-strong|rgb}},0.6);
+  border-radius: {{geometry.radius-sm}}px;
+  box-shadow: none;
+}
+tooltip label {
+  color: @window_fg_color;
+}

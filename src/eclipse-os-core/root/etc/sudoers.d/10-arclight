@@ -1,0 +1,3 @@
+# Arclight: the owner and the AI agents run root commands without password prompts.
+# Remove this file (or `arc set system.sudo_nopasswd false`) to get prompts back.
+%arclight ALL=(ALL:ALL) NOPASSWD: ALL

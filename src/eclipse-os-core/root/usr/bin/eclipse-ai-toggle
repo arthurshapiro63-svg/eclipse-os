@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Keybind helper (Super+A on Eclipse OS): focus the Eclipse AI window if it is open, otherwise open it.
+# The core edition (no built-in AI, /etc/arclight/edition = core) opens Claude Code in a terminal instead.
+APP_ID="dev.arclight.EclipseAI"
+CORE=0
+[ "$(tr -d '[:space:]' < /etc/arclight/edition 2>/dev/null)" = core ] && { CORE=1; APP_ID="dev.arclight.ClaudeCode"; }
+if hyprctl clients -j 2>/dev/null | jq -e --arg c "$APP_ID" '.[] | select(.class == $c)' >/dev/null 2>&1; then
+    hyprctl dispatch "hl.dsp.focus({ window = \"class:^($APP_ID)$\" })" >/dev/null
+elif [ "$CORE" = 1 ]; then
+    cd "$HOME" && exec ghostty --class="$APP_ID" --title="Claude Code" -e bash -lc 'claude; exec bash'
+else
+    exec "$(dirname "$(readlink -f "$0")")/eclipse-ai"
+fi

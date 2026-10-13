@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Midnight Blue wallpaper picker: a glass wofi grid of rounded thumbnails.
+# Picking one hands it to ~/.local/bin/wallpaper, which sets it on EVERY monitor
+# through awww (same animated transition), runs the matugen pipeline (hue-clamped),
+# repaints consumers, and persists it for the next login.
+set -euo pipefail
+
+DIR="${WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
+THUMBS="$HOME/.cache/wallpaper-picker"
+STYLE="$HOME/.config/wofi/wallpaper-picker.css"
+TW=288; TH=162      # 16:9 thumbnails; 4 columns x 4 rows fit a 1080p screen
+
+note() { command -v notify-send >/dev/null && notify-send -a Wallpaper "Wallpaper" "$1" || echo "$1" >&2; }
+
+[[ -d "$DIR" ]] || { note "No folder: $DIR"; exit 1; }
+mapfile -t walls < <(find "$DIR" -maxdepth 1 -type f \
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort)
+(( ${#walls[@]} > 0 )) || { note "No images in $DIR"; exit 1; }
+
+current="$(cat "$HOME/.cache/current-wallpaper" 2>/dev/null || true)"
+mkdir -p "$THUMBS"
+
+# Rounded-corner thumbnail, cached by name + mtime + size so edits regenerate it.
+# The current wallpaper gets a variant with an accent ring baked in. The ring colour
+# follows the active palette: the matugen report in dynamic mode, the tokens otherwise
+# (a stale report from an old dynamic run must not tint the static theme).
+mode="$(cat "$HOME/.config/theme/current" 2>/dev/null || echo midnight-blue)"
+if [[ "$mode" == dynamic ]]; then
+    ACCENT="$(python3 -c 'import json,os;print(json.load(open(os.path.expanduser("~/.cache/wallpaper-theme.json")))["mb"]["accent"])' 2>/dev/null || true)"
+else
+    ACCENT="$(python3 -c 'import json,os,sys;print(json.load(open(os.path.expanduser("~/.config/theme/tokens/"+sys.argv[1]+".json")))["color"]["accent"])' "$mode" 2>/dev/null || true)"
+fi
+ACCENT="${ACCENT:-#2F7CFF}"
+thumb() {
+    local src="$1" ring="$2" key out
+    key="$(basename "$src")-$(stat -c %Y "$src")-${TW}x${TH}${ring:+-cur-${ACCENT#\#}}"
+    out="$THUMBS/${key//[^A-Za-z0-9._-]/_}.png"
+    if [[ ! -s "$out" ]]; then
+        local draw=()
+        [[ -n "$ring" ]] && draw=(-fill none -stroke "$ACCENT" -strokewidth 5
+                                  -draw "roundrectangle 2,2 $((TW-3)),$((TH-3)) 11,11")
+        magick "$src" -resize "${TW}x${TH}^" -gravity center -extent "${TW}x${TH}" \
+            "${draw[@]}" \
+            \( -size "${TW}x${TH}" xc:none -fill white \
+               -draw "roundrectangle 0,0 $((TW-1)),$((TH-1)) 12,12" \) \
+            -compose DstIn -composite "$out" 2>/dev/null || cp -f "$src" "$out"
+    fi
+    printf '%s' "$out"
+}
+
+declare -A by_label
+entries=""
+for w in "${walls[@]}"; do
+    label="$(basename "${w%.*}")"; label="${label#midnight-}"
+    ring=""; [[ "$w" == "$current" ]] && ring=1
+    by_label["$label"]="$w"
+    entries+="img:$(thumb "$w" "$ring"):text:$label"$'\n'
+done
+entries="${entries%$'\n'}"
+
+n=${#walls[@]}; cols=3; (( n > 9 )) && cols=4; (( n < cols )) && cols=$n
+rows=$(( (n + cols - 1) / cols )); (( rows > 4 )) && rows=4
+
+style_args=()
+[[ -f "$STYLE" ]] && style_args=(--style "$STYLE")
+
+# Isolate wofi from ~/.config/gtk-3.0/gtk.css: that file styles flowboxchild:selected (solid
+# accent) at USER priority, above wofi's --style, and would paint over the glass selection.
+# The private XDG_CONFIG_HOME keeps settings.ini (icons/fonts) and fontconfig via symlinks.
+XDG_PRIV="$THUMBS/xdg"
+mkdir -p "$XDG_PRIV/gtk-3.0"
+for l in gtk-3.0/settings.ini fontconfig; do
+    [[ -e "$HOME/.config/$l" && ! -e "$XDG_PRIV/$l" ]] && ln -s "$HOME/.config/$l" "$XDG_PRIV/$l"
+done
+choice="$(printf '%s\n' "$entries" | XDG_CONFIG_HOME="$XDG_PRIV" wofi --dmenu --allow-images --insensitive \
+            "${style_args[@]}" \
+            --prompt 'Wallpaper' --columns "$cols" --lines "$rows" \
+            --width $(( cols * (TW + 26) + 40 )) --height $(( rows * (TH + 26) + 104 )) \
+            -D image_size="$TW" -D hide_scroll=true -D matching=fuzzy -D content_halign=center \
+            --cache-file /dev/null || true)"
+[[ -n "$choice" ]] || exit 0
+
+# wofi may hand back either the label or the whole "img:...:text:label" line.
+label="${choice##*:text:}"
+target="${by_label[$label]:-}"
+[[ -n "$target" ]] || { note "Couldn't match selection: $label"; exit 1; }
+
+exec "$HOME/.local/bin/wallpaper" "$target"

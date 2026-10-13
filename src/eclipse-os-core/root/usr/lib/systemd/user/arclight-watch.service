@@ -1,0 +1,8 @@
+[Unit]
+Description=Arclight service-failure watcher (Fix with AI)
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/arclight-watch
+Restart=on-failure
+RestartSec=5

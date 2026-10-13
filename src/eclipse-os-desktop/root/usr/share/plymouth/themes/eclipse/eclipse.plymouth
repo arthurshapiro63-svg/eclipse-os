@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Eclipse
+Description=Eclipse OS boot: the moon slides across the golden sun as the system starts; at totality the corona (Arthur's logo) appears
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/eclipse
+ScriptFile=/usr/share/plymouth/themes/eclipse/eclipse.script

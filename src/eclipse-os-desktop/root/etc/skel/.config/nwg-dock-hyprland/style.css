@@ -1,0 +1,39 @@
+/* Midnight Blue — nwg-dock-hyprland */
+window {
+  background: transparent;
+}
+
+#box {
+  background-color: rgba(10, 15, 30, 0.72);
+  border: 1px solid rgba(47, 124, 255, 0.40);
+  border-radius: 16px;
+  padding: 6px 10px;
+}
+
+#active {
+  border-bottom: 3px solid #2f7cff;
+}
+
+button, image {
+  background: none;
+  border-style: none;
+  box-shadow: none;
+  color: #c8d6f0;
+}
+
+button {
+  padding: 4px 6px;
+  margin: 0 3px;
+  border-radius: 10px;
+  font-family: "JetBrainsMono Nerd Font";
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+button:hover {
+  background-color: rgba(47, 124, 255, 0.28);
+}
+
+button:focus {
+  box-shadow: none;
+}

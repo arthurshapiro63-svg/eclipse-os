@@ -1,0 +1,11 @@
+[Unit]
+Description=Eclipse AI local model server (Ollama)
+Documentation=file:///usr/share/doc/arclight
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/eclipse-ai-ollama
+Restart=on-failure
+RestartSec=2
+# Started by the Eclipse AI window on launch and stopped when it closes; not enabled at boot
+# (the same as Arch AI's arch-ai-ollama.service).

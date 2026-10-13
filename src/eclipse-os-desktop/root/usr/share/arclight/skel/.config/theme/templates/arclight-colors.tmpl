@@ -1,0 +1,25 @@
+#@ target: ~/.config/hypr/arclight-colors.lua
+#@ reload: hyprctl reload >/dev/null
+#@ comment: --
+-- Liquid-glass colours from the active theme's tokens (read by arclight.lua).
+-- Only token groups every theme has (color, glow) are used here, so this template also renders
+-- for themes made before Eclipse OS. In Eclipse the glow ramp is the sun's golden corona:
+-- peak #FFF6E4 -> high #FFE6B8 -> mid #FFC94A -> base #E89B2A.
+return {
+    -- focused window: a sun-gold edge that fades into the accent (dusk amber in Eclipse) (light catching the top-left corner)
+    active_border = {
+        "rgba({{glow.peak|hexl}}ff)", "rgba({{glow.mid|hexl}}f2)", "rgba({{glow.base|hexl}}b0)",
+        "rgba({{color.accent|hexl}}70)", "rgba({{color.accent-dim|hexl}}60)",
+    },
+    -- unfocused: a faint specular rim on top that sinks into the base
+    inactive_border = { "rgba({{color.text-primary|hexl}}2e)", "rgba({{color.border-subtle|hexl}}66)", "rgba({{color.bg-base|hexl}}44)" },
+    glow       = "rgba({{glow.mid|hexl}}30)",       -- corona halo behind the focused pane
+    -- the same corona as a ramp: brightest toward the sun, gone on the far side (it turns with the gold edge)
+    glow_ramp  = { "rgba({{glow.mid|hexl}}40)", "rgba({{glow.base|hexl}}1c)", "rgba({{glow.base|hexl}}00)" },
+    glow_peak  = "rgba({{glow.peak|hexl}}ff)",
+    shadow     = "rgba({{color.shadow|hexl}}c8)",
+    shadow_inactive = "rgba({{color.shadow|hexl}}80)",
+    bar        = "rgba({{color.surface|hexl}}a6)",  -- hyprbars title bar: glass, not paint
+    bar_text   = "rgba({{color.text-secondary|hexl}}ff)",
+    background = 0x{{color.bg-base|hexl}},
+}

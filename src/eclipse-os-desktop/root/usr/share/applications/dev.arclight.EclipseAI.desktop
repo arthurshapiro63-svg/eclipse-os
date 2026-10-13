@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Eclipse AI
+GenericName=AI assistant
+Comment=Your local AI assistant: chat, fix, install and change anything (runs on this PC)
+Exec=eclipse-ai
+Icon=arclight
+Terminal=false
+Categories=Utility;System;
+Keywords=ai;assistant;chat;ollama;eclipse;arch ai;local;
+StartupWMClass=dev.arclight.EclipseAI
+StartupNotify=true

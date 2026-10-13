@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# arclight-update: rebuild Arclight's own packages from its source tree and install them.
+#   arclight-update [SRC]     (default: $ARCLIGHT_SRC or ~/eclipse-os, a checkout of the eclipse-os repo)
+# Runs as your user (makepkg refuses root); installing goes through arclight-asroot (no password).
+set -euo pipefail
+SRC="${1:-${ARCLIGHT_SRC:-$HOME/eclipse-os}}"
+[ -f "$SRC/src/eclipse-os-core/PKGBUILD" ] || { echo "arclight-update: no Arclight source at $SRC" >&2; exit 1; }
+OUT="$(mktemp -d)"
+trap 'rm -rf "$OUT"' EXIT
+for p in eclipse-os-core eclipse-os-desktop eclipse-os-installer; do
+  echo "==> building $p"
+  W="$OUT/build-$p"; cp -r "$SRC/src/$p" "$W"
+  (cd "$W" && PKGDEST="$OUT" makepkg -f --nodeps --noconfirm >"$OUT/$p.log" 2>&1) || { tail -20 "$OUT/$p.log"; exit 2; }
+done
+echo "==> installing"
+arclight-asroot pacman -U --noconfirm "$OUT"/*.pkg.tar.zst
+systemctl --user restart arclight-session.service 2>/dev/null || true
+echo "Arclight updated from $SRC ($(git -C "$SRC" log -1 --format='%h %s' 2>/dev/null || echo 'no git'))"

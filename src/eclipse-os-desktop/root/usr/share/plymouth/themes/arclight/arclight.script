@@ -1,0 +1,77 @@
+# Arclight boot splash: black, the mark with a slow electric-blue "breathing" glow, a thin progress line,
+# and a glass password box when an encrypted disk asks for its passphrase.
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0.0, 0.01, 0.03);
+
+cx = Window.GetX() + Window.GetWidth() / 2;
+cy = Window.GetY() + Window.GetHeight() / 2;
+
+glow = Sprite(Image("glow.png"));
+glow.SetPosition(cx - glow.GetImage().GetWidth() / 2, cy - glow.GetImage().GetHeight() / 2 - 40, 1);
+mark = Sprite(Image("mark.png"));
+mark.SetPosition(cx - mark.GetImage().GetWidth() / 2, cy - mark.GetImage().GetHeight() / 2 - 40, 2);
+
+bar_y = cy + 110;
+bar_bg = Sprite(Image("bar-bg.png"));
+bar_bg.SetPosition(cx - 180, bar_y, 2);
+bar_img = Image("bar.png");
+bar = Sprite();
+bar.SetPosition(cx - 180, bar_y, 3);
+
+t = 0;
+fun refresh_callback() {
+    t++;
+    # slow breathing: opacity 0.35 .. 1.0, period ~4 s at 50 fps
+    a = 0.675 + 0.325 * Math.Sin(t * 0.0314);
+    glow.SetOpacity(a);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun progress_callback(duration, progress) {
+    w = Math.Int(360 * progress);
+    if (w < 1) w = 1;
+    bar.SetImage(bar_img.Scale(w, 2));
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+# ---- passphrase (LUKS) / questions
+entry = Sprite(Image("entry.png"));
+entry.SetOpacity(0);
+bullet_img = Image("bullet.png");
+bullets = [];
+prompt = Sprite();
+
+fun hide_bullets() {
+    for (i = 0; bullets[i]; i++) bullets[i].SetOpacity(0);
+}
+
+fun display_password_callback(text, count) {
+    ey = cy + 140;
+    entry.SetPosition(cx - 150, ey, 10);
+    entry.SetOpacity(1);
+    prompt.SetImage(Image.Text(text, 1.0, 0.90, 0.64));
+    prompt.SetPosition(cx - prompt.GetImage().GetWidth() / 2, ey - 26, 10);
+    prompt.SetOpacity(1);
+    hide_bullets();
+    for (i = 0; i < count && i < 24; i++) {
+        if (!bullets[i]) bullets[i] = Sprite(bullet_img);
+        bullets[i].SetPosition(cx - 140 + i * 12, ey + 12, 11);
+        bullets[i].SetOpacity(1);
+    }
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+fun display_normal_callback() {
+    entry.SetOpacity(0);
+    prompt.SetOpacity(0);
+    hide_bullets();
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+# ---- messages (e.g. fsck) under the bar, small and quiet
+msg = Sprite();
+fun message_callback(text) {
+    msg.SetImage(Image.Text(text, 0.54, 0.59, 0.68));
+    msg.SetPosition(cx - msg.GetImage().GetWidth() / 2, bar_y + 24, 10);
+}
+Plymouth.SetMessageFunction(message_callback);

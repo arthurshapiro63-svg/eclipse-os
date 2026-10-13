@@ -1,0 +1,13 @@
+[Unit]
+Description=Arclight: install packages left over from the install (AUR / offline)
+Wants=network-online.target arclightd.service
+After=network-online.target arclightd.service
+ConditionFileNotEmpty=/var/lib/arclight/pending-packages.txt
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/arclight-pkgsync
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+# Midnight Blue — generated from ~/.config/theme/tokens/midnight-blue.json
+# Near-black navy base, cool grey-blue text, one saturated blue accent (#2F7CFF).
+
+background = #0A0F1E
+foreground = #A8B6D4
+
+# Cursor is the ONE accented thing on this surface.
+cursor-color = #2F7CFF
+cursor-text  = #060A14
+
+# Selection stays in the grey-blue ramp (surface-hover / text-primary).
+selection-background = #26355A
+selection-foreground = #E6ECFA
+
+# --- ANSI 0-7 (normal) ---
+palette = 0=#121B32
+palette = 1=#FF5C6E
+palette = 2=#3FD68C
+palette = 3=#FFC857
+palette = 4=#2F7CFF
+palette = 5=#9D7CFF
+palette = 6=#4FC3F7
+palette = 7=#A8B6D4
+
+# --- ANSI 8-15 (bright) ---
+palette = 8=#3A4E7A
+palette = 9=#FF8A98
+palette = 10=#6FE5AC
+palette = 11=#FFD98A
+palette = 12=#5A9BFF
+palette = 13=#BDA5FF
+palette = 14=#86DCFF
+palette = 15=#E6ECFA

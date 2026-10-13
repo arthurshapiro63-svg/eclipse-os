@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# shellctl <action> : run a shell action on whichever desktop shell is running.
+#   actions: launcher panel wallpaper settings power overview clipboard
+# Keybinds in hyprland.lua call this, so they keep working whether the session runs
+# arthur-shell (qs -c arthur) or DankMaterialShell (dms). Switch shells with shell-switch.
+set -u
+action="${1:-}"
+
+active_shell() {
+    if pgrep -a qs 2>/dev/null | grep -qE -- '(-c arthur|quickshell/arthur/shell\.qml)'; then echo arthur
+    elif pgrep -x dms >/dev/null 2>&1; then echo dms
+    else echo none; fi
+}
+
+arthur() { exec qs -c arthur ipc call "$@"; }
+dms_ipc() { exec dms ipc call "$@"; }
+
+case "$(active_shell):$action" in
+    arthur:launcher)  arthur launcher toggle ;;
+    arthur:panel)     arthur panel toggle ;;
+    arthur:wallpaper) arthur wallpaper toggle ;;
+    arthur:settings)  arthur settings toggle ;;
+    arthur:power)     arthur power toggle ;;
+    arthur:overview)  arthur overview toggle ;;
+    arthur:clipboard) arthur clipboard toggle ;;
+
+    # DMS: exactly what these keys did before arthur-shell existed
+    dms:launcher|none:launcher)   pkill -x wofi || exec wofi --show drun ;;
+    dms:panel)        dms_ipc control-center toggle ;;
+    dms:wallpaper|none:wallpaper) exec ~/.local/bin/wallpaper-picker ;;
+    dms:settings)     dms_ipc settings toggle ;;
+    dms:power)        dms_ipc powermenu toggle ;;
+    dms:overview)     dms_ipc hypr toggleOverview ;;
+    dms:clipboard)    dms_ipc clipboard toggle ;;
+
+    none:power)       exec ~/.config/waybar/scripts/powermenu.sh ;;
+    none:*)           notify-send -a shellctl "No desktop shell is running" "Start one with: shell-switch arthur" 2>/dev/null ;;
+    *)  echo "usage: shellctl launcher|panel|wallpaper|settings|power|overview|clipboard" >&2; exit 2 ;;
+esac

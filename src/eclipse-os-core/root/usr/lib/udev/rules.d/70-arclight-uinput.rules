@@ -1,0 +1,2 @@
+# Arclight: the AI's virtual keyboard/mouse (arclight-session) needs /dev/uinput.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="arclight", MODE="0660", OPTIONS+="static_node=uinput", TAG+="uaccess"

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# PNG thumbnail cache and streaming records for Quickshell.
+set -euo pipefail
+export LC_ALL=C
+shopt -s lastpipe nullglob
+
+usage() { printf 'Usage: wallpaper-thumbs [DIR]\n'; }
+if [[ ${1-} == -h || ${1-} == --help ]]; then usage; exit 0; fi
+if (( $# > 1 )); then usage >&2; exit 1; fi
+dir=${1-"$HOME/Pictures/wallpapers"}
+[[ $dir == '~/'* ]] && dir=$HOME/${dir:2}
+if [[ ! -d $dir ]]; then
+    printf 'wallpaper-thumbs: directory missing: %s\n' "$dir" >&2
+    exit 2
+fi
+
+started=$(date +%s%N)
+generated=0
+finish() { printf 'D\t%d\t%d\n' "$generated" "$(( ($(date +%s%N)-started)/1000000 ))"; }
+abort() { printf 'E\t%s\t%s\n' "$dir" "$1"; finish; exit 0; }
+resolved=$(realpath -e -- "$dir") || abort 'cannot resolve directory'
+dir=$resolved
+cache=$HOME/.cache/arthur-shell/thumbs
+mkdir -p -- "$cache" || abort 'cache unavailable'
+exec 9>"$cache/.lock" || abort 'cannot open cache lock'
+flock -w 30 9 || abort 'cache lock timeout'
+# Keep FD 9 inherited: outstanding workers also keep the cache locked.
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+
+images=() missing=() errors=()
+declare -A keep=()
+# lastpipe keeps mapfile in this shell; pipefail catches traversal errors.
+if ! find "$dir" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+    -print0 | sort -z | mapfile -d '' -t images; then
+    abort 'cannot list directory'
+fi
+for abs in "${images[@]}"; do
+    if ! mtime=$(stat -c %Y -- "$abs" 2>/dev/null); then
+        errors+=("$abs"); continue
+    fi
+    digest=$(printf '%s\n%s' "$abs" "$mtime" | sha1sum)
+    name=${digest%% *}.png
+    keep[$name]=$abs
+    thumb=$cache/$name
+    hit=0
+    [[ -s $thumb ]] && hit=1
+    printf 'I\t%s\t%s\t%d\n' "$abs" "$thumb" "$hit"
+    (( hit )) || missing+=("$abs" "$thumb")
+done
+# Defer errors so every possible plan record precedes worker records.
+for abs in "${errors[@]}"; do printf 'E\t%s\tstat failed\n' "$abs"; done
+
+if (( ${#missing[@]} )); then
+    jobs=$(nproc)
+    (( jobs > 8 )) && jobs=8
+    printf '%s\0' "${missing[@]}" |
+        xargs -0 -r -n 2 -P "$jobs" bash -c '
+            set -euo pipefail
+            cache=$1 abs=$2 thumb=$3 tmp=
+            name=${thumb##*/}
+            cleanup() { [[ ! $tmp ]] || rm -rf -- "$tmp"; }
+            trap cleanup EXIT
+            trap "exit 1" HUP INT TERM
+            # Internal records use fixed-size keys and fit well below PIPE_BUF.
+            report() { local line; printf -v line "$@"; printf "%s\n" "$line"; }
+            tmp=$(mktemp -d "$cache/.work.XXXXXXXX" 2>/dev/null) || {
+                report "E\t%s\tcache temp failed" "$name"; exit 0;
+            }
+            low=(nice -n 10)
+            if command -v ionice >/dev/null 2>&1; then low+=(ionice -c3); fi
+            # All scratch files stay in the disposable cache directory.
+            export MAGICK_THREAD_LIMIT=1 MAGICK_TEMPORARY_PATH="$tmp" TMPDIR="$tmp"
+            # FD input keeps filename glob characters literal; [0] selects frame 0.
+            if "${low[@]}" magick -limit memory 256MiB -limit map 512MiB \
+                "/proc/self/fd/3[0]" -colorspace sRGB \
+                -thumbnail "480x270^" -gravity center -extent 480x270 \
+                -strip -define png:compression-level=6 "PNG:$tmp/thumb.png" \
+                2>/dev/null 3<"$abs" &&
+                [[ -s $tmp/thumb.png ]] &&
+                mv -fT -- "$tmp/thumb.png" "$thumb" 2>/dev/null; then
+                report "T\t%s" "$name"
+            else
+                report "E\t%s\tthumbnail failed" "$name"
+            fi
+        ' _ "$cache" |
+        while IFS=$'\t' read -r kind name reason; do
+            if [[ $kind == T ]]; then
+                printf 'T\t%s\n' "$cache/$name"
+                ((generated+=1))
+            else
+                printf 'E\t%s\t%s\n' "${keep[$name]}" "$reason"
+            fi
+        done || :
+fi
+
+# A failed stat leaves the key set incomplete: preserve old files in that case.
+if (( ${#errors[@]} == 0 )); then
+    for thumb in "$cache"/*.png; do
+        name=${thumb##*/}
+        if [[ $name =~ ^[[:xdigit:]]{40}\.png$ && ! ${keep[$name]+yes} ]]; then
+            rm -f -- "$thumb" || :
+        fi
+    done
+fi
+finish
+exit 0

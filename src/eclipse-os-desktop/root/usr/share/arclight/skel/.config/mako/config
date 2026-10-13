@@ -1,0 +1,27 @@
+# Eclipse — mako (fallback notifications when DankMaterialShell is not running)
+# Warm graphite glass (blurred by the arclight-glass layer rule), a thin golden corona rim, red only for critical.
+font=Inter 11
+background-color=#17181bb8
+text-color=#eceae6
+border-color=#ffc94a99
+progress-color=over #ffc94a55
+border-size=1
+border-radius=18
+padding=14,16
+margin=10
+outer-margin=46,4,0,0
+width=380
+height=170
+anchor=top-right
+layer=overlay
+icons=1
+max-icon-size=40
+default-timeout=6000
+max-visible=5
+
+[urgency=low]
+border-color=#34353acc
+
+[urgency=critical]
+border-color=#d42b2b
+default-timeout=0

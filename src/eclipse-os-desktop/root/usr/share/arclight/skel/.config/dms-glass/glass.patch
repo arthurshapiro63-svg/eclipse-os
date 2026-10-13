@@ -1,0 +1,78 @@
+dms-glass: minimal QML patch for DankMaterialShell (base: v1.6.2, .dankrev 3f15ae07e999b609)
+Applied by ~/.local/bin/dms-glass-build onto a copy of the embedded DMS UI tree
+(patch -p1 --fuzz=0; the build fails loudly if any hunk no longer applies).
+Launched by ~/.local/bin/dms-glass-run (falls back to stock `dms run` when stale).
+
+Why: settings.json alone leaves these nested surfaces near-opaque:
+  - notification-centre cards: painted twice at popupTransparency (Rectangle + ElevationShadow fill)
+    -> measured 0.857 over the panel (0.95 of the backdrop hidden). Now one fill at foregroundLayerTransparency.
+  - spotlight search field: alpha floor 0.74 -> now foregroundLayerTransparency.
+  - clipboard history rows: popupTransparency over a popupTransparency panel -> now Theme.nestedSurface.
+Every changed line carries a "dms-glass" comment so a rebase is easy to audit.
+
+--- a/Common/Theme.qml
++++ b/Common/Theme.qml
+@@ -477,7 +477,8 @@
+     readonly property color notepadWindowSurface: withAlpha(surfaceContainer, notepadTransparency)
+     readonly property color nestedSurface: floatingSurfaceHigh
+     readonly property color notificationFloatingSurface: notificationForegroundLayers ? readableSurface : withAlpha(readableSurface, 0)
+-    readonly property color notificationFloatingSurfaceHigh: notificationForegroundLayers ? readableSurfaceHigh : withAlpha(readableSurfaceHigh, 0)
++    // dms-glass: notification cards use the foreground-layer alpha like every other nested card (stock: popupTransparency)
++    readonly property color notificationFloatingSurfaceHigh: notificationForegroundLayers ? withAlpha(surfaceContainerHigh, foregroundLayerTransparency) : withAlpha(surfaceContainerHigh, 0)
+     readonly property color notificationNestedSurface: notificationFloatingSurfaceHigh
+     readonly property real blurLayerOutlineOpacity: Math.max(0, Math.min(1, typeof SettingsData === "undefined" ? 0.12 : (SettingsData.blurLayerOutlineOpacity ?? 0.12)))
+     readonly property real layerOutlineOpacity: blurLayerOutlineOpacity
+--- a/Modules/Notifications/Center/NotificationCard.qml
++++ b/Modules/Notifications/Center/NotificationCard.qml
+@@ -216,9 +216,10 @@
+         z: -1
+         level: root.shadowElevation
+         targetRadius: root.radius
+-        targetColor: root.color
+-        borderColor: root.border.color
+-        borderWidth: root.border.width
++        // dms-glass: shadow only; the card Rectangle already paints fill + border (stock painted them twice)
++        targetColor: "transparent"
++        borderColor: "transparent"
++        borderWidth: 0
+         shadowBlurPx: root.shadowBlurPx
+         shadowSpreadPx: 0
+         shadowOffsetX: root.shadowOffsetXPx
+--- a/Modules/Notifications/Center/HistoryNotificationCard.qml
++++ b/Modules/Notifications/Center/HistoryNotificationCard.qml
+@@ -70,9 +70,10 @@
+         level: Theme.elevationLevel1
+         fallbackOffset: 1
+         targetRadius: root.radius
+-        targetColor: root.color
+-        borderColor: root.border.color
+-        borderWidth: root.border.width
++        // dms-glass: shadow only; the card Rectangle already paints fill + border (stock painted them twice)
++        targetColor: "transparent"
++        borderColor: "transparent"
++        borderWidth: 0
+         shadowEnabled: root.shadowsAllowed
+     }
+ 
+--- a/Modals/DankLauncherV2/SpotlightLauncherContent.qml
++++ b/Modals/DankLauncherV2/SpotlightLauncherContent.qml
+@@ -36,7 +36,7 @@
+         if (Theme.transparentBlurLayers)
+             return _hasQuery ? 0.34 : 0.28;
+         if (Theme.blurForegroundLayers)
+-            return Math.max(Theme.popupTransparency, _hasQuery ? 0.68 : 0.74);
++            return Theme.foregroundLayerTransparency; // dms-glass (stock: max(popupTransparency, 0.68/0.74))
+         return _hasQuery ? Theme.popupTransparency : Math.max(0.68, Theme.popupTransparency * 0.9);
+     }
+     readonly property color _searchSurfaceColor: Theme.withAlpha(_hasQuery ? Theme.surfaceContainerHigh : Theme.surfaceContainer, _searchSurfaceAlpha)
+--- a/Modals/Clipboard/ClipboardEntry.qml
++++ b/Modals/Clipboard/ClipboardEntry.qml
+@@ -40,7 +40,7 @@
+         if (isSelected) {
+             return Theme.primaryPressed;
+         }
+-        return mouseArea.containsMouse ? Theme.primaryHoverLight : Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency);
++        return mouseArea.containsMouse ? Theme.primaryHoverLight : Theme.nestedSurface; // dms-glass (stock: surfaceContainerHigh @ popupTransparency)
+     }
+ 
+     DankRipple {

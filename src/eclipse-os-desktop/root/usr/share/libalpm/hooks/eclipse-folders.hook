@@ -1,0 +1,13 @@
+# Eclipse OS: gold folder icons (the eclipse's corona), re-applied whenever Papirus is installed or updated.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = papirus-icon-theme
+Target = papirus-folders
+Target = eclipse-os-desktop
+
+[Action]
+Description = Eclipse OS: colouring folder icons gold...
+When = PostTransaction
+Exec = /bin/sh -c 'command -v papirus-folders >/dev/null && papirus-folders -C yellow --theme Papirus-Dark >/dev/null 2>&1; true'

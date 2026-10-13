@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "logo_type": "kitty-direct",
+    "logo_source": "~/.config/fastfetch/eclipse-logo.png",
+    "logo_width": 44,
+    "logo": "eclipse",
+    "name": "Eclipse",
+    "slug": "eclipse",
+    "variant": "dark",
+    "description": "Arthur's eclipse photo: warm dark glass and the sun's gold.",
+    "hue_clamp": [
+      18,
+      40
+    ]
+  },
+  "color": {
+    "bg-sunken": "#070708",
+    "bg-base": "#0B0B0D",
+    "surface": "#17181B",
+    "surface-raised": "#222327",
+    "surface-hover": "#2B2C31",
+    "border-subtle": "#34353A",
+    "border-strong": "#4A4A50",
+    "text-primary": "#ECEAE6",
+    "text-secondary": "#9A958E",
+    "text-muted": "#6A665F",
+    "accent": "#D08A4E",
+    "accent-bright": "#EDB98A",
+    "accent-dim": "#6E4F36",
+    "success": "#3FD69A",
+    "warning": "#E0B040",
+    "error": "#D42B2B",
+    "shadow": "#000000"
+  },
+  "ansi": {
+    "black": "#222327",
+    "red": "#D42B2B",
+    "green": "#8FC27A",
+    "yellow": "#FFC94A",
+    "blue": "#8AA2BC",
+    "magenta": "#C98FA6",
+    "cyan": "#7FB8B0",
+    "white": "#9A958E",
+    "bright-black": "#5A5751",
+    "bright-red": "#EA5A5A",
+    "bright-green": "#B6DB9E",
+    "bright-yellow": "#FFE6B8",
+    "bright-blue": "#B3C5D8",
+    "bright-magenta": "#E3B6C7",
+    "bright-cyan": "#AAD6CF",
+    "bright-white": "#F6F3EE"
+  },
+  "glow": {
+    "peak": "#FFF6E4",
+    "high": "#FFE6B8",
+    "mid": "#FFC94A",
+    "base": "#E89B2A",
+    "dot": "#6E4F36"
+  },
+  "sun": {
+    "gold": "#FFC94A",
+    "gold-soft": "#FFE6B8",
+    "gold-deep": "#E89B2A",
+    "core": "#FFF6E4",
+    "on": "#1A1205"
+  },
+  "alpha": {
+    "glass-bar": 0.5,
+    "glass-panel": 0.56,
+    "glass-terminal": 0.72,
+    "hairline": 0.6,
+    "shadow": 0.85,
+    "dim-inactive": 0.12,
+    "shell-bar": 0.42,
+    "shell-panel": 0.5,
+    "shell-card": 0.24
+  },
+  "geometry": {
+    "radius-sm": 8,
+    "radius-md": 14,
+    "radius-lg": 22,
+    "radius-pill": 9999,
+    "gap-in": 5,
+    "gap-out": 12,
+    "border-width": 2,
+    "hairline": 1,
+    "shadow-range": 32,
+    "shadow-power": 3,
+    "rounding-power": 2
+  },
+  "font": {
+    "mono": "JetBrainsMono Nerd Font",
+    "ui": "Inter",
+    "mono-size": 11,
+    "ui-size": 11,
+    "clock-weight": 200
+  },
+  "cursor": {
+    "theme": "phinger-cursors-light",
+    "size": 24
+  },
+  "icons": {
+    "theme": "Papirus-Dark"
+  },
+  "gtk": {
+    "theme": "adw-gtk3-dark"
+  }
+}

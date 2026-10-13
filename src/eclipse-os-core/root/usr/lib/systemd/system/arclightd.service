@@ -1,0 +1,20 @@
+[Unit]
+Description=Arclight system API (root half of the AI interface)
+Documentation=file:///etc/arclight/AGENTS.md
+After=local-fs.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/arclightd
+Restart=always
+# commands it runs (pacman!) must survive a restart of the daemon itself
+KillMode=process
+RestartSec=2
+RuntimeDirectory=arclight
+RuntimeDirectoryMode=0755
+StateDirectory=arclight
+LogsDirectory=arclight
+# Full permissions by design: this daemon IS root for the AI. No sandboxing here.
+
+[Install]
+WantedBy=multi-user.target

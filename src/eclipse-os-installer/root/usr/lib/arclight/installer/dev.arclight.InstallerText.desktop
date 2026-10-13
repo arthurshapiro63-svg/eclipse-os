@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Eclipse OS (text)
+Comment=The text installer in a terminal (quick or advanced: the Rite)
+Exec=ghostty --class=dev.arclight.InstallerText --title="Install Eclipse OS" --font-size=14 -e arclight-install
+Icon=arclight
+Categories=System;
+Terminal=false
+StartupWMClass=dev.arclight.InstallerText
+Keywords=install;installer;setup;arclight;eclipse;text;terminal;rite;

@@ -1,0 +1,13 @@
+[Unit]
+Description=Eclipse OS living wallpaper (the eclipse photo follows the time of day)
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/arclight-livingwall run
+Restart=on-failure
+RestartSec=30
+# background work only: lowest CPU and disk priority, small memory cap
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+MemoryHigh=300M

@@ -1,0 +1,19 @@
+# Eclipse OS installer. The files under root/ are installed as-is.
+pkgname=eclipse-os-installer
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Eclipse OS installer (quick / advanced), migration tooling, install guide, side-by-side boot support"
+arch=('any')
+url="https://github.com/arthurshapiro63-svg/eclipse-os"
+license=('MIT')
+depends=('eclipse-os-core' 'arch-install-scripts' 'gptfdisk' 'btrfs-progs' 'dosfstools' 'e2fsprogs'
+         'cryptsetup' 'efibootmgr' 'grub' 'systemd-ukify' 'sbctl' 'gum' 'rsync' 'squashfs-tools' 'python'
+         'util-linux')
+provides=('arclight-installer')
+conflicts=('arclight-installer')
+replaces=('arclight-installer')
+options=('!strip' '!debug')
+
+package() {
+    cp -a --no-preserve=ownership "$startdir/root/." "$pkgdir/"
+}

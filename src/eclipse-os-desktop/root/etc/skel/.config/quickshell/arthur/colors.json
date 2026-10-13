@@ -1,0 +1,28 @@
+{
+  "source": "theme-apply eclipse",
+  "color": {
+    "bg-sunken": "#070708",
+    "bg-base": "#0B0B0D",
+    "surface": "#17181B",
+    "surface-raised": "#222327",
+    "surface-hover": "#2B2C31",
+    "border-subtle": "#34353A",
+    "border-strong": "#4A4A50",
+    "text-primary": "#ECEAE6",
+    "text-secondary": "#9A958E",
+    "text-muted": "#6A665F",
+    "accent": "#FFC94A",
+    "moon": "#D08A4E",
+    "accent-bright": "#FFE6B8",
+    "accent-dim": "#6E4F36",
+    "success": "#3FD69A",
+    "warning": "#E0B040",
+    "error": "#D42B2B",
+    "shadow": "#000000"
+  },
+  "alpha": {
+    "shell-bar": 0.42,
+    "shell-panel": 0.5,
+    "shell-card": 0.24
+  }
+}

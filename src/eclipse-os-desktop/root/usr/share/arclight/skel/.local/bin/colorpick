@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# colorpick: click a pixel anywhere, copy its colour as #RRGGBB, and notify.
+# Replaces DankMaterialShell's colour picker (no extra package: grim + slurp + ImageMagick).
+set -euo pipefail
+pos="$(slurp -p -b 00000000 -c 5a9bffff)" || exit 0          # Escape = cancel
+hex="$(grim -g "$pos" -t ppm - | magick - -format '#%[hex:p{0,0}]' info:)"
+printf '%s' "$hex" | wl-copy
+notify-send -a "Colour picker" -i color-select "$hex" "Copied to the clipboard"
+printf '%s\n' "$hex"

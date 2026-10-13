@@ -1,0 +1,135 @@
+# Eclipse OS boot splash. Boot progress drives a total solar eclipse:
+#   the golden sun glows in the dark -> the moon slides across it -> a last bright "diamond ring" bead
+#   -> totality: the sun's corona (Arthur's eclipse logo) breathes around the black disk.
+# Images (built by build.sh): sun.png, moon.png, corona.png, flash.png, entry.png, bullet.png
+
+Window.SetBackgroundTopColor(0.027, 0.027, 0.031);    # #070708, warm near-black (dusk photo)
+Window.SetBackgroundBottomColor(0.043, 0.043, 0.051); # #0B0B0D
+
+cx = Window.GetX() + Window.GetWidth() / 2;
+cy = Window.GetY() + Window.GetHeight() / 2 - 30;
+R = 90;                                   # disk radius in pixels (sun and moon are the same size)
+
+sun_img = Image("sun.png");
+sun = Sprite(sun_img);
+sun.SetPosition(cx - sun_img.GetWidth() / 2, cy - sun_img.GetHeight() / 2, 1);
+
+corona_img = Image("corona.png");
+corona = Sprite(corona_img);
+corona.SetPosition(cx - corona_img.GetWidth() / 2, cy - corona_img.GetHeight() / 2, 2);
+corona.SetOpacity(0);
+
+moon_img = Image("moon.png");
+moon = Sprite(moon_img);
+moon.SetZ(3);
+
+flash_img = Image("flash.png");
+flash = Sprite(flash_img);
+flash.SetZ(4);
+flash.SetOpacity(0);
+flash.SetPosition(cx + R - flash_img.GetWidth() / 2 - 4, cy - flash_img.GetHeight() / 2, 4);
+
+target = 0;     # boot progress from plymouth (0..1), it jumps; shown progress eases toward it
+shown = 0;
+t = 0;
+# REAL CLOCK: plymouth passes the elapsed seconds ("duration") to the boot-progress function ~30 times a
+# second; the animation runs on that, so slow and fast machines show the same timing. Frame counting is
+# only a fallback until the first progress update arrives.
+t0 = -1;
+elapsed = 0;
+
+fun place_moon(p) {
+    # p 0..0.9: from beside the sun (left, just touching its halo) to dead centre; then stays
+    k = p / 0.9;
+    if (k > 1) k = 1;
+    # ease-out so the last approach to totality is slow and dramatic
+    e = 1 - (1 - k) * (1 - k);
+    x = cx - 2.35 * R + e * 2.35 * R;
+    moon.SetPosition(x - moon_img.GetWidth() / 2, cy - moon_img.GetHeight() / 2, 3);
+    return k;
+}
+
+fun refresh_callback() {
+    t++;
+    if (t0 < 0) elapsed = t / 50.0;
+    shown = shown + (target - shown) * 0.06;
+    # never slower than the clock: totality ~1.3 s after the splash appears (wall-clock seconds), so a fast
+    # boot still reaches it before the desktop; a slower boot follows the real progress.
+    clock = elapsed / 1.4;
+    if (clock > shown) shown = clock;
+    if (shown > 1) shown = 1;
+    k = place_moon(shown);
+    # the sky darkens as the sun is covered
+    sun.SetOpacity(1 - 0.55 * k);
+    # diamond ring: a bright bead on the last sliver (k 0.90..0.99), strongest at 0.95
+    d = k - 0.95;
+    if (d < 0) d = -d;
+    fa = 1 - d / 0.05;
+    if (fa < 0) fa = 0;
+    flash.SetOpacity(fa);
+    # totality: the corona fades in, then breathes slowly
+    if (k > 0.93) {
+        c = (k - 0.93) / 0.07;
+        if (c > 1) c = 1;
+        breathe = 0.88 + 0.12 * Math.Sin(elapsed * 2.0);
+        corona.SetOpacity(c * breathe);
+    } else {
+        corona.SetOpacity(0);
+    }
+}
+Plymouth.SetRefreshRate(60);
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun progress_callback(duration, progress) {
+    if (t0 < 0) t0 = duration - t / 50.0;   # continue smoothly from the fallback clock
+    elapsed = duration - t0;
+    if (progress > target) target = progress;
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+# going down (shutdown/reboot): show totality straight away
+if (Plymouth.GetMode() == "shutdown" || Plymouth.GetMode() == "reboot") {
+    target = 1;
+    shown = 1;
+}
+
+# ---- passphrase (encrypted disk): glass box under the eclipse
+entry = Sprite(Image("entry.png"));
+entry.SetOpacity(0);
+bullet_img = Image("bullet.png");
+bullets = [];
+prompt = Sprite();
+
+fun hide_bullets() {
+    for (i = 0; bullets[i]; i++) bullets[i].SetOpacity(0);
+}
+
+fun display_password_callback(text, count) {
+    ey = cy + 2.6 * R;
+    entry.SetPosition(cx - entry.GetImage().GetWidth() / 2, ey, 10);
+    entry.SetOpacity(1);
+    prompt.SetImage(Image.Text(text, 0.91, 0.93, 0.96));
+    prompt.SetPosition(cx - prompt.GetImage().GetWidth() / 2, ey - 26, 10);
+    prompt.SetOpacity(1);
+    hide_bullets();
+    for (i = 0; i < count && i < 24; i++) {
+        if (!bullets[i]) bullets[i] = Sprite(bullet_img);
+        bullets[i].SetPosition(cx - entry.GetImage().GetWidth() / 2 + 12 + i * 12, ey + 12, 11);
+        bullets[i].SetOpacity(1);
+    }
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+fun display_normal_callback() {
+    entry.SetOpacity(0);
+    prompt.SetOpacity(0);
+    hide_bullets();
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+msg = Sprite();
+fun message_callback(text) {
+    msg.SetImage(Image.Text(text, 0.54, 0.59, 0.68));
+    msg.SetPosition(cx - msg.GetImage().GetWidth() / 2, cy + 3.4 * R, 10);
+}
+Plymouth.SetMessageFunction(message_callback);

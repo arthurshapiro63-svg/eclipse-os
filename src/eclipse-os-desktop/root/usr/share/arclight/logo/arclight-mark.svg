@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <title>Arclight</title>
+  <desc>Two open electric-blue strokes meet at a luminous peak, with a floating arc between the legs.</desc>
+  <defs>
+    <linearGradient id="arc" x1="32" y1="12" x2="32" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#CFF1FF"/>
+      <stop offset=".46" stop-color="#3DA9FF"/>
+      <stop offset="1" stop-color="#0B4FB3"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-40%" width="200%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feComponentTransfer in="blur" result="halo"><feFuncA type="linear" slope=".6"/></feComponentTransfer>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#glow)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13 52 32 12 51 52" stroke="url(#arc)" stroke-width="5"/>
+    <path d="M24 41 29 41 34 36 32 43 40 39" stroke="#CFF1FF" stroke-width="2.8"/>
+  </g>
+</svg>

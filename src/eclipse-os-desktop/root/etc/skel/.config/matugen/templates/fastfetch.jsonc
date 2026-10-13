@@ -1,0 +1,101 @@
+// Midnight Blue fastfetch (matugen template -> ~/.config/fastfetch/config.jsonc). Colours from ~/.config/theme/tokens/midnight-blue.json.
+// Logo: ~/.config/fastfetch/logo-arch.txt (half-block render of /usr/share/pixmaps/archlinux-logo.svg).
+// NOTE: never use {#rrggbb} inside a format string -- fastfetch parses it as SGR and errors.
+//       Use a module's "outputColor" instead.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "~/.config/fastfetch/logo-arch.txt",
+    "color": {
+      "1": "{{colors.primary_fixed.default.hex}}",
+      "2": "{{colors.primary.default.hex}}",
+      "3": "{{colors.primary.default.hex}}",
+      "4": "{{colors.primary_container.default.hex}}",
+      "5": "{{colors.outline_variant.default.hex}}"
+    },
+    "padding": {
+      "top": 1,
+      "left": 2,
+      "right": 4
+    }
+  },
+  "display": {
+    "separator": "",
+    "brightColor": false,
+    "color": {
+      "keys": "{{mb.text_muted}}",
+      "title": "{{mb.text_primary}}",
+      "separator": "{{mb.border_strong}}"
+    },
+    "key": {
+      "width": 13
+    }
+  },
+  "modules": [
+    {
+      "type": "title",
+      "color": {
+        "user": "{{mb.text_primary}}",
+        "at": "{{mb.text_muted}}",
+        "host": "{{mb.text_primary}}"
+      }
+    },
+    {
+      "type": "custom",
+      "format": "──────────────────────────────────────",
+      "outputColor": "{{mb.border_strong}}"
+    },
+    {
+      "type": "os",
+      "key": "󰣇  os"
+    },
+    {
+      "type": "kernel",
+      "key": "  kernel"
+    },
+    {
+      "type": "wm",
+      "key": "  wm"
+    },
+    {
+      "type": "terminal",
+      "key": "  terminal"
+    },
+    {
+      "type": "shell",
+      "key": "  shell"
+    },
+    {
+      "type": "uptime",
+      "key": "󰅐  uptime"
+    },
+    {
+      "type": "packages",
+      "key": "󰏖  packages"
+    },
+    {
+      "type": "display",
+      "key": "󰍹  display",
+      "compactType": "original-with-refresh-rate"
+    },
+    {
+      "type": "cpu",
+      "key": "  cpu"
+    },
+    {
+      "type": "gpu",
+      "key": "󰢮  gpu"
+    },
+    {
+      "type": "memory",
+      "key": "󰍛  memory"
+    },
+    "break",
+    {
+      "type": "colors",
+      "symbol": "block",
+      "paddingLeft": 0
+    }
+  ]
+}

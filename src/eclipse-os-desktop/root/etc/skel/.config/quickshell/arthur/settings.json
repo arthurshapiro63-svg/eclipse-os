@@ -1,0 +1,54 @@
+{
+    "bar": {
+        "celsius": true,
+        "clock24h": false,
+        "height": 34,
+        "showMedia": true,
+        "showSeconds": false,
+        "showWeather": true,
+        "weatherLat": 40.71,
+        "weatherLon": -74.01,
+        "weatherPlace": "New York"
+    },
+    "dev": {
+        "screens": [
+            "HDMI-A-1"
+        ]
+    },
+    "dock": {
+        "autoHide": true,
+        "hideDelayMs": 500,
+        "iconSize": 42,
+        "pinned": [
+            "com.mitchellh.ghostty",
+            "thunar",
+            "zen",
+            "dev.arthur.ArchAI"
+        ],
+        "revealDelayMs": 90
+    },
+    "glass": {
+        "bar": -1,
+        "card": -1,
+        "hairline": -1,
+        "panel": -1
+    },
+    "launcher": {
+        "maxResults": 8
+    },
+    "motion": {
+        "preset": "liquid",
+        "reduceMotion": false
+    },
+    "notifications": {
+        "dnd": false,
+        "historyLimit": 100,
+        "timeoutMs": 6000
+    },
+    "panel": {
+        "width": 420
+    },
+    "wallpaper": {
+        "dir": "~/Pictures/wallpapers"
+    }
+}

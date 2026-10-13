@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Eclipse
+Description=A golden eclipse corona breathing on black, with a thin golden progress line
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/arclight
+ScriptFile=/usr/share/plymouth/themes/arclight/arclight.script

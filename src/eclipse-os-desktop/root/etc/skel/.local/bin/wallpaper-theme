@@ -1,0 +1,717 @@
+#!/usr/bin/env bash
+# Midnight Blue: wallpaper -> measured matugen source clamp -> templates -> repaint.
+#
+# Usage:
+#   wallpaper-theme [-q|--quiet] [-v|--verbose] [--probe] [--] [IMAGE]
+#   wallpaper-theme -h|--help
+#
+# Without IMAGE, read ~/.cache/current-wallpaper.
+# --probe prints one JSON object and creates no files, directories, or caches.
+#
+# Settings: ~/.config/matugen/wallpaper-theme.conf, sourced as trusted bash.
+# WALLPAPER_HUE_CLAMP / WALLPAPER_HUE_MIN / WALLPAPER_HUE_MAX override settings.
+# Unspecified band endpoints come from the token file's meta.hue_clamp.
+#
+# Neutral/out-of-band sources target the token hue: at most 10 measured
+# corrections, with a +/-1.5 degree convergence threshold. Token fallback uses
+# delta=0 and must still satisfy the band and +/-6 degree safety checks.
+#
+# Report:
+#   rotated: clamp intervention occurred, including neutral/token fallback.
+#   converged: no intervention needed, or iterative correction converged.
+#   iterations: correction measurements, excluding initial/fallback measurements.
+#   rotation: palette rotation; explicitly zero for token fallback.
+# Measurements are unrounded; logging rounds only for display.
+#
+# Exit codes:
+#   0 success
+#   1 usage or configuration error
+#   2 missing/unreadable image
+#   3 tool or filesystem failure
+#   4 unsafe clamped palette
+# Probe exits 4 exactly when matugen's final primary is outside the band,
+# including with HUE_CLAMP=0. Normal unclamped runs permit any hue.
+#
+# Requires bash 5, Python >=3.13, matugen 4.2, ImageMagick 7.
+# hyprctl and dms are optional consumers.
+#
+# Probe uses anonymous RAM for its matugen configuration. The Python program is
+# passed as an argument because bash can spool large heredocs to temporary files.
+# Python signal/exit handlers clean report staging files.
+#
+# ATOMICITY EXCEPTION: report staging uses ${XDG_RUNTIME_DIR:-/tmp} when it is
+# on the report's filesystem. Otherwise staging must be beside the report:
+# a cross-filesystem mv cannot provide atomic replacement.
+#
+# Never edits hyprland.lua or hypr/dms/*.lua, runs dms setup, or signals Ghostty.
+set -euo pipefail
+
+die() {
+    printf 'wallpaper-theme: error: %s\n' "$2" >&2
+    exit "$1"
+}
+
+usage() {
+    printf '%s\n' \
+        'Usage: wallpaper-theme [-q|--quiet] [-v|--verbose] [--probe] [--] [IMAGE]' \
+        'Without IMAGE, use ~/.cache/current-wallpaper.' \
+        '  --probe       Print analysis JSON; write nothing.' \
+        '  -q, --quiet   Suppress information; retain warnings/errors.' \
+        '  -v, --verbose Show iteration and update details.' \
+        '  -h, --help    Show this help.'
+}
+
+probe=0 quiet=0 verbose=0
+images=()
+
+while (( $# )); do
+    case "$1" in
+        --probe) probe=1 ;;
+        -q|--quiet) quiet=1 ;;
+        -v|--verbose) verbose=1 ;;
+        -h|--help) usage; exit 0 ;;
+        --) shift; images+=("$@"); break ;;
+        -*) die 1 "unknown option: $1 (use -- before a filename beginning with -)" ;;
+        *) images+=("$1") ;;
+    esac
+    shift
+done
+
+(( ${#images[@]} <= 1 )) || die 1 'expected at most one image'
+
+HUE_CLAMP=1 HUE_MIN= HUE_MAX= SCHEME=scheme-tonal-spot
+DMS_FOLLOW=0 GHOSTTY_FOLLOW=1
+USER_CONF="$HOME/.config/matugen/wallpaper-theme.conf"
+
+if [[ -f "$USER_CONF" ]]; then
+    # Trusted settings only: commands here can defeat the no-write probe contract.
+    # shellcheck source=/dev/null
+    source "$USER_CONF" >&2 || die 1 "cannot source $USER_CONF"
+fi
+
+HUE_CLAMP="${WALLPAPER_HUE_CLAMP-$HUE_CLAMP}"
+HUE_MIN="${WALLPAPER_HUE_MIN-$HUE_MIN}"
+HUE_MAX="${WALLPAPER_HUE_MAX-$HUE_MAX}"
+
+command -v python3 >/dev/null || die 3 'python3 is not installed'
+
+# Python owns signal handling and cleanup after exec.
+exec python3 -B -c '
+import atexit
+import colorsys
+import fcntl
+import json
+import math
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import tomllib
+
+probe, quiet, verbose = (x == "1" for x in sys.argv[1:4])
+image_arg, clamp_arg, lo_arg, hi_arg, scheme, dms_arg, ghostty_arg = sys.argv[4:11]
+home = Path.home()
+config_path = home / ".config/matugen/config.toml"
+report_path = home / ".cache/wallpaper-theme.json"
+pending = set()
+
+
+class Failure(Exception):
+    def __init__(self, code, message):
+        self.code, self.message = code, message
+
+
+def log(message, *, warning=False, detail=False):
+    if warning or (not quiet and (verbose or not detail)):
+        print("wallpaper-theme: " + " ".join(str(message).split()), file=sys.stderr)
+
+
+def cleanup():
+    for path in tuple(pending):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+atexit.register(cleanup)
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    signal.signal(sig, lambda number, frame: sys.exit(128 + number))
+
+
+def run(argv, *, pass_fds=(), binary=False, env=None):
+    try:
+        p = subprocess.run(
+            argv, capture_output=True, text=not binary,
+            pass_fds=pass_fds, env=env, check=False
+        )
+    except OSError as exc:
+        raise Failure(3, f"{argv[0]}: {exc}") from exc
+    if p.returncode:
+        error = p.stderr.decode(errors="replace") if binary else p.stderr
+        raise Failure(3, f"{argv[0]} failed ({p.returncode}): {error.strip()}")
+    return p.stdout
+
+
+def hex_color(value):
+    if not isinstance(value, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
+        raise ValueError(f"expected #rrggbb, got {value!r}")
+    return value.lower()
+
+
+def hsl(color):
+    h, l, s = colorsys.rgb_to_hls(
+        *(int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    )
+    return h * 360, s, l
+
+
+def difference(a, b):
+    return (a - b + 180) % 360 - 180
+
+
+def rotate(color, degrees):
+    if degrees == 0:
+        return color.lower()
+    h, s, l = hsl(color)
+    rgb = colorsys.hls_to_rgb(((h + degrees) % 360) / 360, l, s)
+    return "#{:02x}{:02x}{:02x}".format(*(round(c * 255) for c in rgb))
+
+
+def toml_value(value):
+    # Matugen config values are scalars, arrays, and inline tables.
+    if isinstance(value, dict):
+        return "{ " + ", ".join(
+            json.dumps(k) + " = " + toml_value(v) for k, v in value.items()
+        ) + " }"
+    if isinstance(value, list):
+        return "[" + ", ".join(map(toml_value, value)) + "]"
+    if isinstance(value, (str, bool, int, float)):
+        return json.dumps(value, ensure_ascii=True, allow_nan=False)
+    raise ValueError(f"unsupported matugen config value: {value!r}")
+
+
+def read_text(path):
+    return path.read_bytes().decode("utf-8") if path.exists() else ""
+
+
+def write_changed(path, data):
+    if isinstance(data, str):
+        data = data.encode()
+    if path.exists() and path.read_bytes() == data:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    log(f"updated {path}", detail=True)
+    return True
+
+
+def atomic_report(data):
+    if report_path.exists() and report_path.read_bytes() == data:
+        return
+
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    directory = runtime
+    if runtime.stat().st_dev != report_path.parent.stat().st_dev:
+        directory = report_path.parent
+
+    fd, name = tempfile.mkstemp(prefix=".wallpaper-theme-", dir=directory)
+    temporary = Path(name)
+    pending.add(temporary)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            mode = (
+                stat.S_IMODE(report_path.stat().st_mode)
+                if report_path.exists() else 0o600
+            )
+            os.fchmod(stream.fileno(), mode)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, report_path)  # Atomic rename, equivalent to same-FS mv.
+    finally:
+        temporary.unlink(missing_ok=True)
+        pending.discard(temporary)
+
+
+def set_assignment(path, key, value, initial=""):
+    original = read_text(path)
+    lines = (original or initial).splitlines(keepends=True)
+    pattern = re.compile(r"^\s*" + re.escape(key) + r"\s*=")
+    result, found = [], False
+
+    for line in lines:
+        if pattern.match(line):
+            if not found:
+                result.append(f"{key} = {value}\n")
+                found = True
+        else:
+            result.append(line)
+
+    if not found:
+        if result and not result[-1].endswith(("\n", "\r")):
+            result[-1] += "\n"
+        result.append(f"{key} = {value}\n")
+
+    write_changed(path, "".join(result))
+
+
+def ipc(argv):
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        log(f"warning: {argv[0]}: {exc}", warning=True)
+        return None
+
+    if p.returncode:
+        log(
+            f"warning: {argv[0]} failed ({p.returncode}): "
+            f"{p.stderr.strip() or p.stdout.strip()}",
+            warning=True
+        )
+        return None
+    return p.stdout.strip()
+
+
+def dms_value(key):
+    raw = ipc(["dms", "ipc", "call", "settings", "get", key])
+    if raw is None:
+        return None
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    return value if isinstance(value, str) else None
+
+
+def repaint(dms_follow, ghostty_follow):
+    log("repainting consumers")
+
+    generated = home / ".config/hypr/generated-colors.lua"
+    if generated.is_file() and shutil.which("hyprctl"):
+        lua = "\n".join(
+            line for line in read_text(generated).splitlines()
+            if not line.lstrip().startswith("--")
+        )
+        if lua.strip():
+            ipc(["hyprctl", "eval", lua])
+
+    if dms_follow:
+        directory = home / ".config/DankMaterialShell"
+        generated_dms = directory / "midnight-dynamic.json"
+        if not shutil.which("dms") or not generated_dms.is_file():
+            log(
+                "warning: DMS follow requested, but dms or its generated theme is missing",
+                warning=True
+            )
+        else:
+            content = generated_dms.read_bytes()
+            a = directory / "midnight-dynamic-a.json"
+            b = directory / "midnight-dynamic-b.json"
+            current = dms_value("customThemeFile")
+            theme = dms_value("currentThemeName")
+            active = Path(current) if current else None
+
+            if (
+                active in (a, b)
+                and active.is_file()
+                and active.read_bytes() == content
+            ):
+                target = active
+            else:
+                target = b if active == a else a
+                write_changed(target, content)
+
+            if current != str(target):
+                ipc([
+                    "dms", "ipc", "call", "settings", "set",
+                    "customThemeFile", str(target)
+                ])
+            if theme != "custom":
+                ipc([
+                    "dms", "ipc", "call", "settings", "set",
+                    "currentThemeName", "custom"
+                ])
+
+    if ghostty_follow:
+        set_assignment(
+            home / ".config/ghostty/config", "theme", "midnight-dynamic"
+        )
+
+    set_assignment(
+        home / ".config/btop/btop.conf",
+        "color_theme",
+        "\"midnight-dynamic\"",
+        "# Managed in part by wallpaper-theme.\ntheme_background = False\n"
+    )
+
+    for version in (5, 6):
+        directory = home / f".config/qt{version}ct"
+        path = directory / f"qt{version}ct.conf"
+        if not path.exists():
+            write_changed(
+                path,
+                "[Appearance]\ncustom_palette=true\n"
+                f"color_scheme_path={directory}/colors/midnight-dynamic.conf\n"
+                "style=Fusion\nicon_theme=Papirus-Dark\n"
+            )
+
+
+def main():
+    if (
+        clamp_arg not in ("0", "1")
+        or dms_arg not in ("0", "1")
+        or ghostty_arg not in ("0", "1")
+    ):
+        raise Failure(
+            1, "HUE_CLAMP, DMS_FOLLOW, and GHOSTTY_FOLLOW must be 0 or 1"
+        )
+
+    clamp = clamp_arg == "1"
+    if scheme == "scheme-smart":
+        raise Failure(
+            1, "scheme-smart depends on the image and cannot be reproduced by color rendering"
+        )
+
+    for program in ("matugen", "magick"):
+        if not shutil.which(program):
+            raise Failure(3, f"{program} is not installed")
+
+    try:
+        argument = image_arg
+        if not argument:
+            argument = (
+                home / ".cache/current-wallpaper"
+            ).read_text().rstrip("\r\n")
+        image = Path(argument).expanduser().resolve(strict=True)
+        if not argument or not image.is_file():
+            raise OSError("not a regular image file")
+        with image.open("rb"):
+            pass
+    except (OSError, ValueError) as exc:
+        raise Failure(
+            2, f"image missing or unreadable: {argument or "<none>"}: {exc}"
+        ) from exc
+
+    # Lock an existing directory: serialize runs without creating a lock file.
+    try:
+        lock_fd = os.open(config_path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as exc:
+        raise Failure(
+            1, f"cannot open matugen configuration directory: {exc}"
+        ) from exc
+
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_SH if probe else fcntl.LOCK_EX)
+        execute(image, clamp)
+    finally:
+        os.close(lock_fd)
+
+
+def execute(image, clamp):
+    try:
+        tokens = json.loads(
+            (home / ".config/theme/tokens/midnight-blue.json").read_text()
+        )
+        colors = {
+            key: hex_color(value) for key, value in tokens["color"].items()
+        }
+        ansi = {
+            key: hex_color(value) for key, value in tokens["ansi"].items()
+        }
+        token_accent = colors["accent"]
+        token_hue = hsl(token_accent)[0]
+
+        defaults = tokens["meta"]["hue_clamp"]
+        if not isinstance(defaults, list) or len(defaults) != 2:
+            raise ValueError("meta.hue_clamp must contain two degrees")
+
+        lo = float(lo_arg if lo_arg else defaults[0])
+        hi = float(hi_arg if hi_arg else defaults[1])
+        if not all(map(math.isfinite, (lo, hi))) or not 0 <= lo <= hi <= 360:
+            raise ValueError("require 0 <= HUE_MIN <= HUE_MAX <= 360")
+        if clamp and not lo <= token_hue <= hi:
+            raise ValueError("the clamp band must include the token accent hue")
+
+        config = tomllib.loads(config_path.read_text())
+        settings = dict(config.get("config", {}))
+        if settings.get("import_json_files"):
+            raise ValueError(
+                "config.import_json_files could override the measured palette"
+            )
+
+        for name, template in config.get("templates", {}).items():
+            if (
+                template.get("type", scheme) != scheme
+                or template.get("mode", "dark") != "dark"
+            ):
+                raise ValueError(
+                    f"template {name} overrides the measured scheme or mode"
+                )
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise Failure(1, f"invalid tokens/configuration: {exc}") from exc
+
+    def in_band(hue):
+        return lo <= hue <= hi
+
+    # Anonymous RAM configuration: preserve palette settings, disable writes,
+    # updater activity, wallpaper commands, imports, and template processing.
+    settings.update(caching=False, version_check=False)
+    settings.pop("wallpaper", None)
+    settings.pop("import_json_files", None)
+    content = "[config]\n" + "\n".join(
+        json.dumps(key) + " = " + toml_value(value)
+        for key, value in settings.items()
+    )
+
+    fd = os.memfd_create("wallpaper-theme-config", os.MFD_CLOEXEC)
+    try:
+        os.write(fd, (content + "\n[templates]\n").encode())
+
+        def measure(arguments):
+            output = run(
+                [
+                    "matugen", *arguments,
+                    "--json", "hex", "--dry-run", "-q",
+                    "-m", "dark", "-t", scheme,
+                    "-c", f"/proc/self/fd/{fd}"
+                ],
+                pass_fds=(fd,)
+            )
+            try:
+                result = json.loads(output)["colors"]
+                return (
+                    hex_color(result["source_color"]["dark"]["color"]),
+                    hex_color(result["primary"]["dark"]["color"])
+                )
+            except (ValueError, KeyError, TypeError) as exc:
+                raise Failure(3, f"invalid matugen JSON: {exc}") from exc
+
+        log(f"analysing {image} with {scheme}")
+        source_before, accent_before = measure(
+            ["image", str(image), "--source-color-index", "0"]
+        )
+        hue_before = hsl(accent_before)[0]
+
+        # Matugen can substitute a saturated default for a grey image.
+        # Inspect actual pixels as well. Nearest sampling avoids averaging
+        # differently colored pixels into a misleading grey.
+        # Disallow ImageMagick disk/map caches and temporary-file creation.
+        env = dict(os.environ, MAGICK_TEMPORARY_PATH="/proc/self/fd")
+        with image.open("rb") as stream:
+            pixels = run(
+                [
+                    "magick", "-limit", "disk", "0", "-limit", "map", "0",
+                    f"/proc/self/fd/{stream.fileno()}[0]",
+                    "-colorspace", "sRGB", "-sample", "64x64!",
+                    "-alpha", "off", "-depth", "8", "rgb:-"
+                ],
+                pass_fds=(stream.fileno(),),
+                binary=True,
+                env=env
+            )
+
+        if len(pixels) != 64 * 64 * 3:
+            raise Failure(3, "magick returned an invalid RGB sample")
+
+        neutral_image = all(
+            colorsys.rgb_to_hls(
+                *(c / 255 for c in pixels[i:i + 3])
+            )[2] < 0.08
+            for i in range(0, len(pixels), 3)
+        )
+        neutral_source = hsl(source_before)[1] < 0.08
+        needs_clamp = clamp and (
+            neutral_source or neutral_image or not in_band(hue_before)
+        )
+
+        source, accent, hue = source_before, accent_before, hue_before
+        iterations, fallback = 0, False
+        converged = not needs_clamp
+
+        if needs_clamp and not (neutral_source or neutral_image):
+            log(f"clamping matugen primary toward token hue {token_hue:.3f} deg")
+            offset = 0.0
+            seen = {source_before}
+
+            for iteration in range(1, 11):
+                offset += difference(token_hue, hue)
+                # Always rotate the original source, avoiding accumulated
+                # 8-bit rounding from repeatedly rotating previous results.
+                candidate = rotate(source_before, offset)
+                if candidate in seen:
+                    break
+                seen.add(candidate)
+
+                source, accent = measure(["color", "hex", candidate])
+                hue = hsl(accent)[0]
+                iterations = iteration
+                log(
+                    f"iteration {iteration}: source {source}, "
+                    f"primary {accent} ({hue:.3f} deg)",
+                    detail=True
+                )
+
+                if (
+                    in_band(hue)
+                    and abs(difference(hue, token_hue)) <= 1.5
+                ):
+                    converged = True
+                    break
+
+        if needs_clamp and not converged:
+            reason = (
+                "neutral source/image"
+                if neutral_source or neutral_image
+                else "iteration did not converge"
+            )
+            log(
+                f"warning: {reason}; using token accent as matugen source and delta 0",
+                warning=True
+            )
+            source, accent = measure(["color", "hex", token_accent])
+            hue = hsl(accent)[0]
+            fallback = True
+    finally:
+        os.close(fd)
+
+    delta = 0.0 if fallback else difference(hue, token_hue)
+
+    semantic = {"success", "warning", "error", "shadow"}
+    ansi_semantic = {
+        "red", "green", "yellow",
+        "bright-red", "bright-green", "bright-yellow"
+    }
+
+    def palette(delta):
+        mb = {}
+        for block, prefix, fixed in (
+            (colors, "", semantic),
+            (ansi, "ansi_", ansi_semantic)
+        ):
+            for key, value in block.items():
+                key_out = prefix + key.replace("-", "_")
+                value_out = value if key in fixed else rotate(value, delta)
+                if key_out in mb or key_out + "_s" in mb:
+                    raise Failure(1, f"colliding token key: {key_out}")
+                mb[key_out], mb[key_out + "_s"] = value_out, value_out[1:]
+        return mb
+
+    mb = palette(delta)
+    # 8-bit rounding of the rotated accent can land a hair outside the band when
+    # the matugen primary sits right on an edge (e.g. 229.9 deg). Pull the rotation
+    # back toward the token hue in 0.25 deg steps instead of refusing the palette.
+    while clamp and not in_band(hsl(mb["accent"])[0]) and delta != 0.0:
+        delta = math.copysign(max(abs(delta) - 0.25, 0.0), delta)
+        mb = palette(delta)
+
+    desktop_hue = hsl(mb["accent"])[0]
+    tolerance_ok = (
+        not needs_clamp or abs(difference(hue, token_hue)) <= 6
+    )
+    desktop_ok = in_band(desktop_hue)
+    safe = in_band(hue) and tolerance_ok and desktop_ok
+
+    result = dict(
+        image=str(image),
+        scheme=scheme,
+        band=[lo, hi],
+        clamp_enabled=clamp,
+        token_hue=token_hue,
+        source_before=source_before,
+        accent_before=accent_before,
+        hue_before=hue_before,
+        source_after=source,
+        accent_after=accent,
+        hue_after=hue,
+        rotation=delta,
+        rotated=needs_clamp,
+        iterations=iterations,
+        in_band=in_band(hue),
+        within_token_tolerance=tolerance_ok,
+        converged=converged,
+        fallback_used=fallback,
+        neutral_source=neutral_source,
+        neutral_image=neutral_image,
+        desktop_hue=desktop_hue,
+        desktop_in_band=desktop_ok,
+        mb=mb
+    )
+    serialized = (
+        json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode()
+
+    tag = (
+        " [hue-clamped]" if needs_clamp
+        else (" [clamp disabled]" if not clamp else "")
+    )
+    summary = (
+        f"matugen accent {accent_before} ({hue_before:.1f} deg) -> "
+        f"{accent} ({hue:.1f} deg){tag}; desktop accent {mb["accent"]} "
+        f"(delta {delta:+.1f})"
+    )
+
+    if probe:
+        sys.stdout.write(serialized.decode())
+        log(summary)
+        if not result["in_band"]:
+            raise SystemExit(4)
+        return
+
+    if clamp and not safe:
+        raise Failure(
+            4,
+            f"refusing unsafe palette: matugen hue {hue:.6f}, "
+            f"desktop hue {desktop_hue:.6f}, token error "
+            f"{abs(difference(hue, token_hue)):.6f} deg"
+        )
+
+    log("rendering matugen templates")
+    for template in config.get("templates", {}).values():
+        output = Path(template["output_path"]).expanduser()
+        if not output.is_absolute():
+            output = config_path.parent / output
+        output = output.resolve()
+        forbidden = home / ".config/hypr/dms"
+        if (
+            output == home / ".config/hypr/hyprland.lua"
+            or (
+                output.is_relative_to(forbidden)
+                and output.suffix == ".lua"
+            )
+        ):
+            raise Failure(1, f"forbidden template output: {output}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+    imported = json.dumps(
+        {"mb": mb, "wallpaper_theme": {"scheme": scheme}},
+        separators=(",", ":")
+    )
+    run([
+        "matugen", "color", "hex", source,
+        "-c", str(config_path), "-m", "dark", "-t", scheme, "-q",
+        "--import-json-string", imported
+    ])
+
+    log("saving palette report")
+    atomic_report(serialized)
+    repaint(dms_arg == "1", ghostty_arg == "1")
+    log(summary)
+
+
+try:
+    main()
+except Failure as exc:
+    log(f"error: {exc.message}", warning=True)
+    sys.exit(exc.code)
+except (OSError, ValueError, KeyError, TypeError) as exc:
+    log(f"error: {exc}", warning=True)
+    sys.exit(3)
+' "$probe" "$quiet" "$verbose" "${images[0]-}" \
+    "$HUE_CLAMP" "$HUE_MIN" "$HUE_MAX" "$SCHEME" "$DMS_FOLLOW" "$GHOSTTY_FOLLOW"

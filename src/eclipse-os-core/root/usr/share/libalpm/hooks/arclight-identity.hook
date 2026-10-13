@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = filesystem
+Target = eclipse-os-core
+
+[Action]
+Description = Keeping the OS name chosen at install (os-release, issue)...
+When = PostTransaction
+Exec = /usr/bin/arclight-identity --reapply

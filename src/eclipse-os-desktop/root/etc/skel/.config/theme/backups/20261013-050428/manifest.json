@@ -1,0 +1,82 @@
+{
+  "from": "midnight-blue",
+  "to": "eclipse",
+  "files": [
+    {
+      "target": "@HOME@/.config/hypr/arclight-colors.lua",
+      "backup": null
+    },
+    {
+      "target": "@HOME@/.config/quickshell/arthur/colors.json",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/arthur-shell-colors.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/bat/themes/rice.tmTheme",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/bat-theme.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/btop/themes/rice.theme",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/btop-theme.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/eza/theme.yml",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/eza-theme.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/fastfetch/config.jsonc",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/fastfetch-static.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/fzf/fzfrc",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/fzf-theme.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/ghostty/themes/rice",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/ghostty-theme.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/gtk-3.0/gtk.css",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/gtk3-css.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/gtk-4.0/gtk.css",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/gtk4-css.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/hypr/generated-colors.lua",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/hyprland-colors-static.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/hypr/hyprlock.conf",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/hyprlock.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/qt5ct/colors/rice.conf",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/qt5ct-colors.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/qt6ct/colors/rice.conf",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/qt6ct-colors.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/starship.toml",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/starship.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/wofi/screenshot.css",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/wofi-screenshot.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/wofi/style.css",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/wofi-style.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/wofi/wallpaper-picker.css",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/wofi-wallpaper-static.tmpl"
+    },
+    {
+      "target": "@HOME@/.config/zed/themes/midnight-blue.json",
+      "backup": "@HOME@/.config/theme/backups/20261013-050428/zed-theme.tmpl"
+    }
+  ]
+}

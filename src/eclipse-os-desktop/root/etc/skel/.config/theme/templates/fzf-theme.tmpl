@@ -1,0 +1,24 @@
+#@ target: ~/.config/fzf/fzfrc
+#@ comment: #
+# {{meta.name}} fzf options -- tokens from ~/.config/theme/tokens/{{meta.slug}}.json
+# Read on every fzf run via FZF_DEFAULT_OPTS_FILE (set in ~/.bashrc), so a theme switch
+# reaches already-open shells. bg:-1 keeps the list on the terminal's glass.
+--color=fg:#{{color.text-secondary|hex}},bg:-1,hl:#{{glow.high|hex}}
+--color=fg+:#{{color.text-primary|hex}},bg+:#{{color.surface-raised|hex}},hl+:#{{glow.peak|hex}}
+--color=gutter:-1,query:#{{color.text-primary|hex}},disabled:#{{color.text-muted|hex}}
+--color=info:#{{color.text-muted|hex}},prompt:#{{sun.gold|hex}},pointer:#{{sun.gold|hex}}
+--color=marker:#{{color.success|hex}},spinner:#{{glow.high|hex}},header:#{{color.text-muted|hex}}
+--color=border:#{{color.border-strong|hex}},separator:#{{color.border-subtle|hex}},scrollbar:#{{color.border-strong|hex}}
+--color=preview-border:#{{color.border-subtle|hex}},label:#{{color.text-secondary|hex}},preview-label:#{{color.text-muted|hex}}
+--border=rounded
+--layout=reverse
+--height=60%
+--margin=0,1
+--padding=0,1
+--info=inline-right
+--prompt='❯ '
+--pointer=▌
+--marker=▍
+--separator=─
+--scrollbar=│
+--preview-window=right,55%,border-left

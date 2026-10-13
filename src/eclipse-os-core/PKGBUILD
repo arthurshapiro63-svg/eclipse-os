@@ -1,0 +1,30 @@
+# Eclipse OS AI interface. The files under root/ are installed as-is.
+pkgname=eclipse-os-core
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Eclipse OS AI interface: system + session daemons, settings registry, arc CLI, MCP server"
+arch=('any')
+url="https://github.com/arthurshapiro63-svg/eclipse-os"
+license=('MIT')
+depends=('python' 'python-pillow' 'python-gobject' 'at-spi2-core' 'gtk4' 'gtk4-layer-shell' 'libadwaita'
+         'grim' 'slurp' 'tesseract' 'tesseract-data-eng' 'wl-clipboard' 'wtype' 'pacman-contrib' 'polkit'
+         'sudo' 'libnotify' 'playerctl' 'brightnessctl' 'networkmanager' 'bluez-utils'
+         'power-profiles-daemon' 'wireplumber')
+makedepends=('python')
+optdepends=('yay: AUR installs through the API'
+            'claude-code: the default agent'
+            'btrfs-progs: snapshots'
+            'ollama: Eclipse AI local models'
+            'ollama-vulkan: Eclipse AI on the GPU')
+provides=('arclight-core')
+conflicts=('arclight-core')
+replaces=('arclight-core')
+backup=('etc/arclight/arclightd.json')
+install=eclipse-os-core.install
+options=('!strip' '!debug')
+
+package() {
+    cp -a --no-preserve=ownership "$startdir/root/." "$pkgdir/"
+    chmod 440 "$pkgdir/etc/sudoers.d/10-arclight"
+    python -m compileall -q -j0 --invalidation-mode checked-hash -s "$pkgdir" -p / "$pkgdir/usr/lib/arclight"
+}

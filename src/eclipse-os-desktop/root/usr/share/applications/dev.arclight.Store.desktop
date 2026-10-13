@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Eclipse Store
+GenericName=App Store
+Comment=Find, install, open, remove and update apps: Arch, the AUR and Flathub in one place
+Exec=arclight-store
+Icon=/usr/share/arclight/logo/eclipse-logo-256.png
+Terminal=false
+Categories=System;PackageManager;Settings;
+Keywords=store;apps;install;software;packages;pacman;aur;flatpak;flathub;update;remove;eclipse;arclight;
+StartupWMClass=dev.arclight.Store
+StartupNotify=true

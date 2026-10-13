@@ -1,0 +1,21 @@
+post_install() {
+  systemd-sysusers arclight.conf 2>/dev/null
+  systemd-tmpfiles --create arclight.conf 2>/dev/null
+  modprobe uinput 2>/dev/null
+  udevadm control --reload 2>/dev/null; udevadm trigger --name-match=uinput 2>/dev/null
+  # every admin (wheel) user gets the AI interface; the installer does this too
+  for u in $(getent group wheel | cut -d: -f4 | tr , ' '); do gpasswd -a "$u" arclight >/dev/null 2>&1; done
+  systemctl enable --now arclightd.service 2>/dev/null || systemctl enable arclightd.service 2>/dev/null
+  systemctl --global enable arclight-watch.service 2>/dev/null
+  echo ">>> Arclight core installed. Log out and back in for the 'arclight' group to apply."
+}
+post_upgrade() {
+  systemd-sysusers arclight.conf 2>/dev/null
+  systemd-tmpfiles --create arclight.conf 2>/dev/null
+  # restart later: this upgrade may itself be running inside arclightd (arc update / the AI's pkg.install)
+  systemd-run --quiet --on-active=8 --unit="arclightd-restart-$$" systemctl try-restart arclightd.service 2>/dev/null \
+    || systemctl try-restart arclightd.service 2>/dev/null
+}
+pre_remove() {
+  systemctl disable --now arclightd.service 2>/dev/null
+}

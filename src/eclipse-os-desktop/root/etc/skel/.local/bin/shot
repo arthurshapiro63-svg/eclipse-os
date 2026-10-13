@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# shot -- Midnight Blue capture workflow (grim + slurp + satty + tesseract).
+#
+# Every image capture is saved to ~/Pictures/Screenshots/<timestamp>.png AND
+# put on the clipboard, then announced with a thumbnail notification that
+# carries Open / Copy / Annotate actions.
+#
+#   shot region        drag a region                          (Print)
+#   shot window        click a window                         (menu / optional ALT+Print)
+#   shot full          all monitors                           (CTRL+ALT+Print)
+#   shot monitor       the focused monitor only               (menu)
+#   shot delay [N]     full screen after N seconds (default 5)
+#   shot annotate      region -> satty editor                 (SHIFT+Print)
+#   shot ocr           region -> tesseract -> text on clipboard
+#   shot menu          wofi menu of all of the above          (SUPER+Print)
+#   shot theme         (re)generate satty + wofi styling from the tokens
+#   shot slurp-args    print the themed slurp flags (debug)
+#
+# Colours/fonts come from ~/.config/theme/tokens/midnight-blue.json -- nothing
+# is hardcoded here.
+set -uo pipefail
+
+TOKENS="${SHOT_TOKENS:-$HOME/.config/theme/tokens/midnight-blue.json}"
+DIR="${SHOT_DIR:-$HOME/Pictures/Screenshots}"
+APP="Screenshot"
+WOFI_CSS="$HOME/.config/wofi/screenshot.css"
+SATTY_DIR="$HOME/.config/satty"
+
+mkdir -p "$DIR"
+
+# ---------- tokens ----------------------------------------------------------
+tok() { jq -r "$1" "$TOKENS"; }
+# hexa "#RRGGBB" 0.55 -> "#RRGGBB8C"
+hexa() { printf '%s%02X' "$1" "$(awk -v a="$2" 'BEGIN{printf "%d", a*255+0.5}')"; }
+# rgba "#RRGGBB" 0.55 -> "rgba(r, g, b, 0.55)"
+rgba() {
+    local h="${1#\#}"
+    printf 'rgba(%d, %d, %d, %s)' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}" "$2"
+}
+
+[[ -r "$TOKENS" ]] || { notify-send -a "$APP" "Screenshot" "Theme tokens missing: $TOKENS"; exit 1; }
+
+C_ACCENT=$(tok '.color.accent')
+C_ACCENT_BRIGHT=$(tok '.color["accent-bright"]')
+C_SUNKEN=$(tok '.color["bg-sunken"]')
+C_BASE=$(tok '.color["bg-base"]')
+C_SURFACE=$(tok '.color.surface')
+C_RAISED=$(tok '.color["surface-raised"]')
+C_HOVER=$(tok '.color["surface-hover"]')
+C_BORDER=$(tok '.color["border-subtle"]')
+C_TEXT=$(tok '.color["text-primary"]')
+C_TEXT2=$(tok '.color["text-secondary"]')
+C_MUTED=$(tok '.color["text-muted"]')
+C_SUCCESS=$(tok '.color.success')
+C_WARNING=$(tok '.color.warning')
+C_ERROR=$(tok '.color.error')
+A_PANEL=$(tok '.alpha["glass-panel"]')
+A_HAIR=$(tok '.alpha.hairline')
+A_DIM=$(tok '.alpha["dim-inactive"]')
+G_BORDER=$(tok '.geometry["border-width"]')
+G_RSM=$(tok '.geometry["radius-sm"]')
+G_RMD=$(tok '.geometry["radius-md"]')
+F_MONO=$(tok '.font.mono')
+F_UI=$(tok '.font.ui')
+
+# slurp overlay: navy surround dimmed at the hairline alpha, accent border,
+# faint accent fill, candidate boxes (window mode) in raised surface.
+SLURP_ARGS=(
+    -b "$(hexa "$C_SUNKEN" "$A_HAIR")"
+    -c "$(hexa "$C_ACCENT" 1)"
+    -s "$(hexa "$C_ACCENT" "$A_DIM")"
+    -B "$(hexa "$C_RAISED" "$A_HAIR")"
+    -w "$G_BORDER"
+    -F "$F_MONO"
+)
+
+# ---------- helpers ---------------------------------------------------------
+newfile() {
+    local base f n=1
+    base="$DIR/$(date +%Y-%m-%d_%H-%M-%S)"
+    f="$base.png"
+    while [[ -e "$f" ]]; do f="$base-$n.png"; n=$((n + 1)); done
+    printf '%s' "$f"
+}
+
+# Interactive selection; empty output = cancelled (Escape).
+pick_region() { slurp -d "${SLURP_ARGS[@]}" 2>/dev/null || true; }
+
+window_boxes() {
+    # Windows on every visible workspace (incl. an open special workspace),
+    # floating first so they win over the tiled window underneath, then by
+    # most-recently-focused.
+    local mon cli
+    mon=$(hyprctl monitors -j) || return 1
+    cli=$(hyprctl clients -j) || return 1
+    jq -rn --argjson m "$mon" --argjson c "$cli" '
+        ([$m[] | .activeWorkspace.id, .specialWorkspace.id] | map(select(. != 0))) as $ws
+        | $c
+        | map(select(.mapped and (.hidden | not) and (.workspace.id as $w | $ws | index($w))))
+        | sort_by([(if .floating then 0 else 1 end), .focusHistoryID])
+        | .[]
+        | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1]) \(.class)"'
+}
+
+pick_window() {
+    local boxes
+    boxes=$(window_boxes)
+    [[ -n "$boxes" ]] || return 0
+    # -r: only the listed boxes are selectable, so a single click picks a window.
+    printf '%s\n' "$boxes" | slurp -r "${SLURP_ARGS[@]}" -f '%x,%y %wx%h' 2>/dev/null || true
+}
+
+# Background notification with thumbnail + actions; handles the clicked action.
+notify_capture() {
+    local file="$1" title="$2" dims name
+    dims=$(identify -format '%wx%h' "$file" 2>/dev/null || echo "?")
+    name=$(basename "$file")
+    (
+        # -A makes notify-send wait for a click; cap it so nothing lingers forever.
+        act=$(timeout 600 notify-send -a "$APP" -i "$file" \
+                -A "open=Open" -A "copy=Copy" -A "edit=Annotate" \
+                "$title" "$name  ·  $dims  ·  copied to clipboard" 2>/dev/null)
+        case "$act" in
+            open) xdg-open "$file" >/dev/null 2>&1 ;;
+            copy) wl-copy --type image/png < "$file" ;;
+            edit) satty --filename "$file" --output-filename "$file" \
+                        --copy-command wl-copy --early-exit --disable-notifications ;;
+        esac
+    ) >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+}
+
+finish() {  # file title
+    local file="$1"
+    [[ -s "$file" ]] || { rm -f "$file"; notify-send -a "$APP" "Screenshot failed" "Nothing was captured"; exit 1; }
+    wl-copy --type image/png < "$file"
+    notify_capture "$file" "$2"
+    printf '%s\n' "$file"
+}
+
+# ---------- modes -----------------------------------------------------------
+do_region() {
+    local g f
+    g=$(pick_region); [[ -n "$g" ]] || exit 0
+    f=$(newfile); grim -g "$g" "$f" && finish "$f" "Region captured"
+}
+
+do_window() {
+    local g f
+    g=$(pick_window); [[ -n "$g" ]] || exit 0
+    f=$(newfile); grim -g "$g" "$f" && finish "$f" "Window captured"
+}
+
+do_full() {
+    local f; f=$(newfile)
+    grim "$f" && finish "$f" "Screen captured"
+}
+
+do_monitor() {
+    local out f
+    out=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+    f=$(newfile)
+    grim -o "$out" "$f" && finish "$f" "Monitor captured ($out)"
+}
+
+do_delay() {
+    local n="${1:-5}" id
+    [[ "$n" =~ ^[0-9]+$ ]] || n=5
+    id=$(notify-send -a "$APP" -p -t $(( n * 1000 )) "Screenshot in ${n}s" "Full screen") || id=""
+    sleep "$(( n > 1 ? n - 1 : 0 ))"
+    # make sure our own countdown popup is not in the shot
+    [[ -n "$id" ]] && gdbus call --session --dest org.freedesktop.Notifications \
+        --object-path /org/freedesktop/Notifications \
+        --method org.freedesktop.Notifications.CloseNotification "$id" >/dev/null 2>&1
+    # clear any other popups (they stay in DMS history) so the shot is clean
+    dms ipc call notifications dismissAllPopups >/dev/null 2>&1 || true
+    sleep 1
+    do_full
+}
+
+do_annotate() {
+    local g f
+    g=$(pick_region); [[ -n "$g" ]] || exit 0
+    f=$(newfile)
+    # satty saves to $f and copies via wl-copy on Enter (see config.toml);
+    # we then add our own notification (satty's is disabled to avoid doubles).
+    grim -g "$g" - | satty --filename - --output-filename "$f" \
+        --copy-command wl-copy --early-exit --initial-tool arrow --disable-notifications
+    # whatever satty button was used, the saved file also ends up on the clipboard
+    [[ -s "$f" ]] && { wl-copy --type image/png < "$f"; notify_capture "$f" "Annotated screenshot"; }
+    exit 0
+}
+
+ocr_file() {  # image -> recognised text on stdout
+    local tmp
+    tmp=$(mktemp --suffix=.png)
+    # upscale + greyscale: screen text is small; tesseract is much happier at 2x
+    magick "$1" -colorspace Gray -resize 200% "$tmp" 2>/dev/null || cp "$1" "$tmp"
+    tesseract "$tmp" - -l eng --psm 6 2>/dev/null | sed -e 's/[[:space:]]*$//' -e '/^$/N;/^\n$/D'
+    rm -f "$tmp"
+}
+
+do_ocr() {
+    local g img text preview
+    g=$(pick_region); [[ -n "$g" ]] || exit 0
+    img=$(mktemp --suffix=.png)
+    grim -g "$g" "$img"
+    text=$(ocr_file "$img")
+    rm -f "$img"
+    if [[ -z "${text//[[:space:]]/}" ]]; then
+        notify-send -a "$APP" "OCR: no text found" "Nothing recognisable in that region"
+        exit 1
+    fi
+    printf '%s' "$text" | wl-copy --type text/plain
+    preview=$(printf '%s' "$text" | head -c 240)
+    notify-send -a "$APP" -i "accessories-text-editor" "Text copied ($(printf '%s' "$text" | wc -w) words)" "$preview"
+    printf '%s\n' "$text"
+}
+
+do_menu() {
+    local entries choice
+    entries=$'󰩭  Region\n  Window\n󰍹  Full screen\n󰍺  Focused monitor\n󰔛  Delayed (5s)\n󰔛  Delayed (10s)\n󰏫  Annotate region\n󰊄  Text (OCR)'
+    [[ -r "$WOFI_CSS" ]] || do_theme >/dev/null
+    choice=$(printf '%s\n' "$entries" | wofi --dmenu --insensitive --prompt 'Capture' \
+                --style "$WOFI_CSS" --width 300 --lines 8 --cache-file /dev/null \
+                --hide-scroll 2>/dev/null) || exit 0
+    sleep 0.25   # let the wofi layer fade before grim/slurp see the screen
+    case "$choice" in
+        *Region*)        do_region ;;
+        *Window*)        do_window ;;
+        *"Full screen"*) do_full ;;
+        *monitor*)       do_monitor ;;
+        *"(5s)"*)        do_delay 5 ;;
+        *"(10s)"*)       do_delay 10 ;;
+        *Annotate*)      do_annotate ;;
+        *OCR*)           do_ocr ;;
+        *)               exit 0 ;;
+    esac
+}
+
+backup() { [[ -e "$1" ]] && cp -a "$1" "$1.bak-$(date +%Y%m%d-%H%M%S)"; return 0; }
+
+do_theme() {
+    mkdir -p "$SATTY_DIR" "$(dirname "$WOFI_CSS")"
+    backup "$SATTY_DIR/config.toml"; backup "$SATTY_DIR/overrides.css"
+
+    cat > "$SATTY_DIR/config.toml" <<EOF
+# Generated by ~/.local/bin/shot theme from $TOKENS -- edit the tokens, not this.
+[general]
+fullscreen = false
+floating-hack = true
+early-exit = ["all"]
+corner-roundness = $G_RSM
+initial-tool = "arrow"
+copy-command = "wl-copy"
+annotation-size-factor = 1.5
+output-filename = "~/Pictures/Screenshots/%Y-%m-%d_%H-%M-%S.png"
+# Enter = save to file AND copy to clipboard (one action, both outcomes)
+actions-on-enter = ["save-to-clipboard", "save-to-file", "exit"]
+actions-on-escape = ["exit"]
+actions-on-right-click = ["save-to-clipboard", "save-to-file"]
+save-after-copy = true
+default-hide-toolbars = false
+default-fill-shapes = false
+default-round-caps = true
+primary-highlighter = "block"
+disable-notifications = true
+no-window-decoration = true
+brush-smooth-history-size = 5
+title = "Satty"
+
+[font]
+family = "$F_UI"
+style = "Regular"
+fallback = ["$F_MONO"]
+
+[color-palette]
+palette = [
+    "$(hexa "$C_ACCENT" 1)",
+    "$(hexa "$C_ERROR" 1)",
+    "$(hexa "$C_WARNING" 1)",
+    "$(hexa "$C_SUCCESS" 1)",
+    "$(hexa "$C_TEXT" 1)",
+    "$(hexa "$C_SUNKEN" 1)",
+]
+custom = [
+    "$C_ACCENT_BRIGHT",
+    "$C_TEXT2",
+    "$C_MUTED",
+    "$C_SURFACE",
+]
+EOF
+
+    cat > "$SATTY_DIR/overrides.css" <<EOF
+/* Generated by ~/.local/bin/shot theme from $TOKENS */
+* { font-family: "$F_UI", "$F_MONO", sans-serif; }
+.inner_box { background-color: $C_SUNKEN; }
+.outer_box { background-color: $C_BASE; color: $C_TEXT; }
+.outer_box .toolbar,
+.toolbar {
+    color: $C_TEXT;
+    background-color: $(rgba "$C_SURFACE" "$A_PANEL");
+    border: 1px solid $(rgba "$C_BORDER" "$A_HAIR");
+}
+.overlay .toolbar-top    { border-radius: 0 0 ${G_RMD}px ${G_RMD}px; }
+.overlay .toolbar-bottom { border-radius: ${G_RMD}px ${G_RMD}px 0 0; }
+.toolbar button {
+    color: $C_TEXT2;
+    background: transparent;
+    border-radius: ${G_RSM}px;
+    box-shadow: none;
+}
+.toolbar button:hover { background-color: $C_HOVER; color: $C_TEXT; }
+.toolbar button:checked,
+button.editing {
+    background-color: $C_ACCENT;
+    color: $C_BASE;
+}
+.toast {
+    color: $C_TEXT;
+    background-color: $(rgba "$C_RAISED" "$A_PANEL");
+    border: 1px solid $C_ACCENT;
+    border-radius: ${G_RSM}px;
+}
+EOF
+
+    # wofi/screenshot.css is a theme-apply template output since glass pass 3
+    # (templates/wofi-screenshot.tmpl: glass panel). Re-render it from the active theme
+    # instead of writing the old opaque style here.
+    theme-apply "$(cat "$HOME/.config/theme/current" 2>/dev/null || echo midnight-blue)" >/dev/null 2>&1 || true
+    printf 'wrote %s\n' "$SATTY_DIR/config.toml" "$SATTY_DIR/overrides.css"; printf 'rendered %s via theme-apply\n' "$WOFI_CSS"
+}
+
+case "${1:-menu}" in
+    region)     do_region ;;
+    window)     do_window ;;
+    full)       do_full ;;
+    monitor)    do_monitor ;;
+    delay)      do_delay "${2:-5}" ;;
+    annotate)   do_annotate ;;
+    ocr)        do_ocr ;;
+    ocr-file)   ocr_file "$2" ;;          # test hook: OCR an existing image
+    boxes)      window_boxes ;;           # test hook: candidate window rects
+    finish)     finish "$2" "${3:-Screenshot}" ;;  # test hook
+    menu)       do_menu ;;
+    theme)      do_theme ;;
+    slurp-args) printf '%q ' "${SLURP_ARGS[@]}"; echo ;;
+    *) sed -n '2,20p' "$0"; exit 2 ;;
+esac

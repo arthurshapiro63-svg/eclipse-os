@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# Midnight Blue wallpaper switcher, driven by awww (the renamed swww).
+#
+#   wallpaper                -> list wallpapers, marking the current one
+#   wallpaper next | prev    -> cycle forward / back, wrapping at both ends
+#   wallpaper random         -> pick a random one
+#   wallpaper <file>         -> set that file (name inside the folder, or any path)
+#   wallpaper --restore      -> re-apply the saved wallpaper (used at login)
+#
+# Every path uses the SAME animated transition (a slow circular `grow` that
+# opens from the mouse cursor). Applies to EVERY connected monitor, persists
+# across reboot, keeps ~/.cache/current-wallpaper{,-lock} in sync, and hands
+# the image to the matugen pipeline so the whole desktop recolours.
+set -euo pipefail
+
+DIR="${WALLPAPER_DIR:-$HOME/Pictures/wallpapers}"
+STATE="$HOME/.cache/current-wallpaper"
+LOCKLINK="$HOME/.cache/current-wallpaper-lock"
+
+# --- transition (single source of truth: every code path below uses these) ---
+TR_TYPE="${WALLPAPER_TRANSITION:-grow}"
+TR_DURATION="${WALLPAPER_TRANSITION_DURATION:-1.5}"
+TR_FPS="${WALLPAPER_TRANSITION_FPS:-120}"
+TR_BEZIER="${WALLPAPER_TRANSITION_BEZIER:-.42,0,.34,1.0}"
+TR_STEP="${WALLPAPER_TRANSITION_STEP:-90}"
+TR_FILTER="${WALLPAPER_FILTER:-Lanczos3}"
+TR_RESIZE="${WALLPAPER_RESIZE:-crop}"
+
+die() { echo "wallpaper: $*" >&2; exit 1; }
+
+# --- make sure awww-daemon is up (it, not hyprpaper, owns the background) ----
+ensure_daemon() {
+    if awww query >/dev/null 2>&1; then return 0; fi
+    command -v awww-daemon >/dev/null 2>&1 || die "awww-daemon not found"
+    setsid -f awww-daemon >/dev/null 2>&1 || true
+    local i
+    for i in $(seq 1 60); do
+        awww query >/dev/null 2>&1 && return 0
+        sleep 0.1
+    done
+    die "awww-daemon did not come up"
+}
+
+# hyprpaper and awww both want the background layer; only one may have it.
+stop_hyprpaper() {
+    if pgrep -x hyprpaper >/dev/null 2>&1; then
+        pkill -x hyprpaper >/dev/null 2>&1 || true
+    fi
+}
+
+# Monitor list straight from awww (names + geometry), one "name x y w h" per line.
+monitor_geometry() {
+    hyprctl monitors -j 2>/dev/null | python3 -c '
+import sys, json
+try:
+    for m in json.load(sys.stdin):
+        print(m["name"], m["x"], m["y"], m["width"], m["height"])
+except Exception:
+    pass
+' 2>/dev/null || true
+}
+
+# Apply to one output, opening the circle from wherever the cursor is on THAT
+# output (centre if the cursor is on the other screen).
+apply_to_output() {
+    local out="$1" pos="$2"
+    awww img "$target" \
+        --outputs "$out" \
+        --resize "$TR_RESIZE" \
+        --filter "$TR_FILTER" \
+        --transition-type "$TR_TYPE" \
+        --transition-duration "$TR_DURATION" \
+        --transition-fps "$TR_FPS" \
+        --transition-step "$TR_STEP" \
+        --transition-bezier "$TR_BEZIER" \
+        --transition-pos "$pos" \
+        --invert-y
+}
+
+[[ -d "$DIR" ]] || die "no wallpaper folder: $DIR"
+
+mapfile -t walls < <(find "$DIR" -maxdepth 1 -type f \
+  \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort)
+
+# An empty folder used to crash here: ${walls[0]} is an unbound variable under `set -u`.
+(( ${#walls[@]} > 0 )) || die "no images in $DIR"
+
+current="$(cat "$STATE" 2>/dev/null || true)"
+
+index_of() {
+    local i
+    for i in "${!walls[@]}"; do
+        [[ "${walls[$i]}" == "$1" ]] && { printf '%s' "$i"; return 0; }
+    done
+    printf '%s' -1
+}
+
+case "${1:-}" in
+    ""|list)
+        for w in "${walls[@]}"; do
+            if [[ "$w" == "$current" ]]; then echo "* $(basename "$w")"
+            else echo "  $(basename "$w")"; fi
+        done
+        exit 0 ;;
+    next|prev)
+        n=${#walls[@]}
+        i=$(index_of "$current")
+        (( i < 0 )) && i=0
+        if (( n == 1 )); then
+            # One image is not an error -- there is simply nowhere to cycle to.
+            echo "wallpaper: only one image in $DIR, nothing to cycle to"
+            target="${walls[0]}"
+        elif [[ "$1" == next ]]; then
+            target="${walls[$(( (i + 1) % n ))]}"
+        else
+            target="${walls[$(( (i - 1 + n) % n ))]}"
+        fi ;;
+    random)
+        target="${walls[RANDOM % ${#walls[@]}]}" ;;
+    --restore|restore)
+        # Login path: re-apply whatever was saved, with no transition fanfare if
+        # nothing is on screen yet. Falls back to the first image in the folder.
+        if [[ -n "$current" && -f "$current" ]]; then target="$current"
+        else target="${walls[0]}"; fi ;;
+    -h|--help)
+        sed -n '2,15p' "$0"; exit 0 ;;
+    *)
+        if   [[ -f "$1"      ]]; then target="$(realpath "$1")"
+        elif [[ -f "$DIR/$1" ]]; then target="$DIR/$1"
+        else die "no such wallpaper: $1"; fi ;;
+esac
+
+ensure_daemon
+
+# --- apply live, per monitor, with the transition ---------------------------
+cursor="$(hyprctl cursorpos 2>/dev/null | tr -d ' ' || true)"   # "X,Y" global, y from top
+cx=""; cy=""
+if [[ "$cursor" =~ ^-?[0-9]+,-?[0-9]+$ ]]; then
+    cx="${cursor%%,*}"; cy="${cursor##*,}"
+fi
+
+applied=0
+while read -r name mx my mw mh; do
+    [[ -n "${name:-}" ]] || continue
+    pos="center"
+    if [[ -n "$cx" ]]; then
+        lx=$(( cx - mx )); ly=$(( cy - my ))
+        if (( lx >= 0 && lx < mw && ly >= 0 && ly < mh )); then
+            pos="${lx},${ly}"           # integers => pixels; --invert-y makes y top-down
+        fi
+    fi
+    apply_to_output "$name" "$pos" || true
+    applied=1
+done < <(monitor_geometry)
+
+if (( applied == 0 )); then
+    # No hyprctl monitor list: let awww paint every output it knows about.
+    target_pos="center"
+    awww img "$target" --resize "$TR_RESIZE" --filter "$TR_FILTER" \
+        --transition-type "$TR_TYPE" --transition-duration "$TR_DURATION" \
+        --transition-fps "$TR_FPS" --transition-step "$TR_STEP" \
+        --transition-bezier "$TR_BEZIER" --transition-pos "$target_pos"
+fi
+
+# Only now that awww is painting the image on every output do we retire
+# hyprpaper, so the handover never shows a black frame.
+stop_hyprpaper
+
+# --- persist so the same wallpaper returns after a reboot -------------------
+# awww keeps its own cache in ~/.cache/awww (restored by awww-daemon at start);
+# this state file is the authoritative one and what `--restore` reads.
+printf '%s\n' "$target" > "$STATE"
+# Eclipse OS: in the eclipse theme the lock screen is the crescent photo (distro copy only, see tools/sync-skel.sh)
+if [[ "$(cat "$HOME/.config/theme/current" 2>/dev/null)" == eclipse && -f /usr/share/arclight/eclipse/lock.jpg ]]; then
+  ln -sf /usr/share/arclight/eclipse/lock.jpg "$LOCKLINK"
+else
+  ln -sf "$target" "$LOCKLINK"   # hyprlock background
+fi
+
+# --- recolour the desktop from the new image (matugen + hue clamp) ----------
+# Recolour the desktop from the wallpaper ONLY in dynamic mode (`theme-apply dynamic`).
+# In a fixed palette (`theme-apply midnight-blue`, the default) a wallpaper change must
+# not overwrite the palette.
+mode="$(cat "$HOME/.config/theme/current" 2>/dev/null || echo midnight-blue)"
+if [[ "$mode" == dynamic && "${WALLPAPER_THEME:-1}" != "0" && -x "$HOME/.local/bin/wallpaper-theme" ]]; then
+    "$HOME/.local/bin/wallpaper-theme" "$target" >/dev/null 2>&1 || true
+fi
+
+echo "Wallpaper set: $(basename "$target")"

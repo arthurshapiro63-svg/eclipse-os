@@ -1,0 +1,70 @@
+#@ target: ~/.config/fastfetch/config.jsonc
+#@ comment: //
+// {{meta.name}} fastfetch. Colours from ~/.config/theme/tokens/{{meta.slug}}.json.
+// Logo: the Eclipse OS logo image (Arthur's eclipse photo), shown with the kitty graphics protocol
+// (Ghostty, kitty). Old ASCII logo: ~/.config/fastfetch/logo-arch.txt -- the Arch mark as a dot matrix in the wallpaper's
+// '.:+#@' ramp: $1-$4 = glow.peak/high/mid/base (top -> bottom, ordered-dither between bands),
+// $5 = glow.dot for the dot field. Key icons follow the same ramp top -> bottom.
+// Format-string colours: {##rrggbb} (double hash) is hex; {#rrggbb} is parsed as SGR and errors.
+// {#separator} = display.color.separator, used to put key labels in text-muted after the icon.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "{{meta.logo_type}}",
+    "source": "{{meta.logo_source}}",
+    "width": {{meta.logo_width}},
+    "color": {
+      "1": "#{{glow.peak|hexl}}",
+      "2": "#{{glow.high|hexl}}",
+      "3": "#{{glow.mid|hexl}}",
+      "4": "#{{glow.base|hexl}}",
+      "5": "#{{glow.dot|hexl}}"
+    },
+    "padding": {
+      "top": 0,
+      "left": 2,
+      "right": 3
+    }
+  },
+  "display": {
+    "brightColor": false,
+    "separator": "",
+    "color": {
+      "keys": "#{{color.text-muted|hexl}}",
+      "title": "#{{color.text-primary|hexl}}",
+      "output": "#{{color.text-secondary|hexl}}",
+      "separator": "#{{color.text-muted|hexl}}"
+    },
+    "key": {
+      "width": 13
+    },
+    "bar": {
+      "char": { "elapsed": "━", "total": "━" }
+    }
+  },
+  "modules": [
+    {
+      "type": "title",
+      "color": {
+        "user": "bold_#{{color.text-primary|hexl}}",
+        "at": "#{{color.text-muted|hexl}}",
+        "host": "#{{color.text-primary|hexl}}"
+      }
+    },
+    { "type": "custom", "format": "────────────────────────────────────────", "outputColor": "#{{color.border-subtle|hexl}}" },
+    { "type": "os",          "key": "󰖙{#separator}  os",       "keyColor": "#{{glow.peak|hexl}}" },
+    { "type": "kernel",      "key": "{#separator}  kernel",    "keyColor": "#{{glow.peak|hexl}}" },
+    { "type": "wm",          "key": "{#separator}  wm",        "keyColor": "#{{glow.peak|hexl}}" },
+    { "type": "terminal",    "key": "{#separator}  terminal",  "keyColor": "#{{glow.high|hexl}}" },
+    { "type": "shell",       "key": "{#separator}  shell",     "keyColor": "#{{glow.high|hexl}}" },
+    { "type": "uptime",      "key": "󰅐{#separator}  uptime",   "keyColor": "#{{glow.high|hexl}}" },
+    { "type": "packages",    "key": "󰏖{#separator}  packages", "keyColor": "#{{glow.mid|hexl}}" },
+    { "type": "display",     "key": "󰍹{#separator}  display",  "keyColor": "#{{glow.mid|hexl}}", "compactType": "original-with-refresh-rate" },
+    { "type": "cpu",         "key": "{#separator}  cpu",       "keyColor": "#{{glow.mid|hexl}}" },
+    { "type": "gpu",         "key": "󰢮{#separator}  gpu",      "keyColor": "#{{glow.base|hexl}}" },
+    { "type": "memory",      "key": "󰍛{#separator}  memory",   "keyColor": "#{{glow.base|hexl}}" },
+    { "type": "disk",        "key": "󰋊{#separator}  disk",     "keyColor": "#{{glow.base|hexl}}", "folders": "/" },
+    "break",
+    { "type": "custom", "format": "{##{{glow.dot|hexl}}}━━━━ {##{{glow.base|hexl}}}━━━━ {##{{glow.mid|hexl}}}━━━━ {##{{glow.high|hexl}}}━━━━ {##{{glow.peak|hexl}}}━━━━ {##{{color.success|hexl}}}━━━━ {##{{color.warning|hexl}}}━━━━ {##{{color.error|hexl}}}━━━━" }
+  ]
+}

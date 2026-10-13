@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "logo_type": "file",
+    "logo_source": "~/.config/fastfetch/logo-arch.txt",
+    "logo_width": 34,
+    "logo": "arch",
+    "name": "Electric Blue",
+    "slug": "arclight",
+    "variant": "dark",
+    "description": "Black glass lit by electric blue.",
+    "hue_clamp": [
+      200,
+      222
+    ]
+  },
+  "color": {
+    "bg-sunken": "#010205",
+    "bg-base": "#03060C",
+    "surface": "#0A1426",
+    "surface-raised": "#101E3A",
+    "surface-hover": "#16294D",
+    "border-subtle": "#1A2D55",
+    "border-strong": "#284A8C",
+    "text-primary": "#EAF6FF",
+    "text-secondary": "#A6C3E8",
+    "text-muted": "#647FA6",
+    "accent": "#2E9BFF",
+    "accent-bright": "#7CCBFF",
+    "accent-dim": "#1260D4",
+    "success": "#3FE0A0",
+    "warning": "#FFC857",
+    "error": "#FF5C7A",
+    "shadow": "#000207"
+  },
+  "ansi": {
+    "black": "#0A1426",
+    "red": "#FF5C7A",
+    "green": "#3FE0A0",
+    "yellow": "#FFC857",
+    "blue": "#2E9BFF",
+    "magenta": "#8F7CFF",
+    "cyan": "#3DD6FF",
+    "white": "#A6C3E8",
+    "bright-black": "#284A8C",
+    "bright-red": "#FF8BA2",
+    "bright-green": "#78ECC0",
+    "bright-yellow": "#FFDA8A",
+    "bright-blue": "#7CCBFF",
+    "bright-magenta": "#B7A9FF",
+    "bright-cyan": "#8DE8FF",
+    "bright-white": "#EAF6FF"
+  },
+  "glow": {
+    "peak": "#DDF6FF",
+    "high": "#8AD8FF",
+    "mid": "#4FB4FF",
+    "base": "#2E9BFF",
+    "dot": "#1260D4"
+  },
+  "sun": {
+    "gold": "#2E9BFF",
+    "gold-soft": "#7CCBFF",
+    "gold-deep": "#1260D4",
+    "core": "#DDF6FF",
+    "on": "#FFFFFF"
+  },
+  "alpha": {
+    "glass-bar": 0.58,
+    "glass-panel": 0.64,
+    "glass-terminal": 0.8,
+    "hairline": 0.6,
+    "shadow": 0.85,
+    "dim-inactive": 0.12,
+    "shell-bar": 0.48,
+    "shell-panel": 0.56,
+    "shell-card": 0.28
+  },
+  "geometry": {
+    "radius-sm": 6,
+    "radius-md": 12,
+    "radius-lg": 18,
+    "radius-pill": 9999,
+    "gap-in": 5,
+    "gap-out": 12,
+    "border-width": 2,
+    "hairline": 1,
+    "shadow-range": 28,
+    "shadow-power": 3,
+    "rounding-power": 2
+  },
+  "font": {
+    "mono": "JetBrainsMono Nerd Font",
+    "ui": "Inter",
+    "mono-size": 11,
+    "ui-size": 11,
+    "clock-weight": 200
+  },
+  "cursor": {
+    "theme": "phinger-cursors-light",
+    "size": 24
+  },
+  "icons": {
+    "theme": "Papirus-Dark"
+  },
+  "gtk": {
+    "theme": "adw-gtk3-dark"
+  }
+}

@@ -46,8 +46,8 @@ pipewire-jack
 xdg-user-dirs
 xdg-utils
 # --- Eclipse OS
-arclight-core
-arclight-desktop
-arclight-installer
+eclipse-os-core
+eclipse-os-desktop
+eclipse-os-installer
 yay-bin
 firefox

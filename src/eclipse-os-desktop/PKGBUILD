@@ -1,0 +1,34 @@
+# Eclipse OS desktop. The files under root/ are installed as-is.
+pkgname=eclipse-os-desktop
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Eclipse OS desktop: Hyprland (Lua config) + DankMaterialShell + Eclipse glass theme, wallpapers, default home"
+arch=('any')
+url="https://github.com/arthurshapiro63-svg/eclipse-os"
+license=('MIT')
+depends=('eclipse-os-core' 'plymouth' 'hyprland' 'hypridle' 'hyprlock' 'hyprpolkitagent'
+         'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk' 'dms-shell' 'quickshell' 'awww' 'matugen'
+         'ghostty' 'ghostty-shell-integration' 'ghostty-terminfo' 'kitty' 'thunar' 'thunar-archive-plugin'
+         'thunar-volman' 'tumbler' 'gvfs' 'ffmpegthumbnailer' 'wofi' 'cliphist' 'satty' 'grim' 'slurp'
+         'wl-clipboard' 'starship' 'fastfetch' 'btop' 'bat' 'eza' 'fzf' 'qt5ct' 'qt6ct' 'qt5-wayland'
+         'qt6-wayland' 'kvantum' 'nwg-look' 'adw-gtk-theme' 'gnome-themes-extra' 'papirus-icon-theme'
+         'inter-font' 'ttf-jetbrains-mono' 'ttf-jetbrains-mono-nerd' 'noto-fonts' 'noto-fonts-emoji'
+         'ttf-liberation' 'pipewire-alsa' 'pipewire-pulse' 'wireplumber' 'pavucontrol' 'pamixer' 'libnotify'
+         'playerctl' 'imagemagick' 'jq' 'python' 'hyprland-plugin-hyprbars' 'phinger-cursors')
+optdepends=('zen-browser-bin: default browser'
+            'zed: default editor'
+            'bibata-cursor-theme-bin')
+provides=('arclight-desktop')
+conflicts=('arclight-desktop')
+replaces=('arclight-desktop')
+options=('!strip' '!debug')
+
+package() {
+    cp -a --no-preserve=ownership "$startdir/root/." "$pkgdir/"
+    local skel
+    for skel in etc/skel usr/share/arclight/skel; do
+        # git keeps neither empty directories nor these modes
+        install -d "$pkgdir/$skel"/.config/{qt5ct/qss,qt6ct/qss,quickshell/arthur/scripts}
+        chmod 600 "$pkgdir/$skel/.config/zed/settings.json"
+    done
+}

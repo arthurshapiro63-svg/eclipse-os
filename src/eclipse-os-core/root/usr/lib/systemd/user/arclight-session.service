@@ -1,0 +1,10 @@
+[Unit]
+Description=Arclight session API (the AI's eyes and hands on the desktop)
+Documentation=file:///etc/arclight/AGENTS.md
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/arclight-session
+Restart=on-failure
+RestartSec=2

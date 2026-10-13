@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+# pacman PostTransaction hook: append the transaction to the Arclight event log.
+import json, os, sys, time
+targets = [l.strip() for l in sys.stdin if l.strip()]
+os.makedirs("/var/log/arclight", exist_ok=True)
+with open("/var/log/arclight/events.jsonl", "a") as f:
+    f.write(json.dumps({"time": time.time(), "kind": "packages", "message": f"pacman transaction: {len(targets)} packages",
+                        "unit": None, "data": {"targets": targets[:500]}}) + "\n")

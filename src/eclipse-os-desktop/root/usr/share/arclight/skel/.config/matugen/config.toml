@@ -1,0 +1,54 @@
+# Midnight Blue matugen pipeline. Driven by ~/.local/bin/wallpaper-theme, which
+# hue-clamps the source colour into the blue band first and then runs
+#   matugen color hex <clamped> -c ~/.config/matugen/config.toml
+# Reloading of consumers is done by wallpaper-theme, not here.
+# NOTE: never write to ~/.config/hypr/dms/*.lua -- those stay unsourced.
+
+[config]
+
+[templates.hyprland]
+input_path  = '~/.config/matugen/templates/hyprland-colors.lua'
+output_path = '~/.config/hypr/generated-colors.lua'
+
+[templates.dms]
+input_path  = '~/.config/matugen/templates/dms-theme.json'
+output_path = '~/.config/DankMaterialShell/midnight-dynamic.json'
+
+[templates.ghostty]
+input_path  = '~/.config/matugen/templates/ghostty-theme'
+output_path = '~/.config/ghostty/themes/midnight-dynamic'
+
+[templates.btop]
+input_path  = '~/.config/matugen/templates/btop.theme'
+output_path = '~/.config/btop/themes/midnight-dynamic.theme'
+
+[templates.fastfetch]
+input_path  = '~/.config/matugen/templates/fastfetch.jsonc'
+output_path = '~/.config/fastfetch/config.jsonc'
+
+[templates.gtk3]
+input_path  = '~/.config/matugen/templates/gtk.css'
+output_path = '~/.config/gtk-3.0/gtk.css'
+
+[templates.gtk4]
+input_path  = '~/.config/matugen/templates/gtk.css'
+output_path = '~/.config/gtk-4.0/gtk.css'
+
+[templates.qt6ct]
+input_path  = '~/.config/matugen/templates/qtct-colors.conf'
+output_path = '~/.config/qt6ct/colors/midnight-dynamic.conf'
+
+[templates.qt5ct]
+input_path  = '~/.config/matugen/templates/qtct-colors.conf'
+output_path = '~/.config/qt5ct/colors/midnight-dynamic.conf'
+
+[templates.wofi_wallpaper]
+input_path  = '~/.config/matugen/templates/wofi-wallpaper.css'
+output_path = '~/.config/wofi/wallpaper-picker.css'
+
+# arthur-shell (Quickshell): same JSON shape as theme-apply's arthur-shell-colors.tmpl. Staged + renamed so
+# the shell's watched FileView never reads a half-written file (matugen writes in place).
+[templates.arthur_shell]
+input_path  = '~/.config/matugen/templates/arthur-shell-colors.json'
+output_path = '~/.config/quickshell/arthur/.colors.json.matugen-tmp'
+post_hook = 'mv -fT -- "$HOME/.config/quickshell/arthur/.colors.json.matugen-tmp" "$HOME/.config/quickshell/arthur/colors.json"'

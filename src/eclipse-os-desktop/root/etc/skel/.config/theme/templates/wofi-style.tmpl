@@ -1,0 +1,49 @@
+#@ target: ~/.config/wofi/style.css
+#@ comment: /*
+/* Glass launcher for wofi (SUPER+R / SUPER+space) and the sudo askpass popup (wofi-askpass).
+   Same glass language as the wallpaper picker and the DMS bar: surface fill at ~0.62 alpha over
+   the ^wofi$ layer blur, 1px hairline with a lighter top edge, accent only on focus and selection.
+   Colours come from theme tokens via theme-apply; edit this template, not style.css. */
+* {
+    font-family: "{{font.ui}}", "{{font.mono}}", sans-serif;
+    font-size: 14px;
+}
+window {
+    background-color: {{color.surface|rgba:0.56}};
+    background-image: radial-gradient(ellipse at 0% 0%, {{sun.gold|rgba:0.10}}, transparent 45%),
+                      linear-gradient(to bottom, {{color.text-primary|rgba:0.06}}, transparent 60px);
+    border: 1px solid {{color.border-strong|rgba:0.45}};
+    border-top-color: {{color.text-primary|rgba:0.28}};
+    border-radius: {{geometry.radius-lg}}px;
+}
+#outer-box { padding: 14px; }
+#input {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border: 1px solid {{color.border-subtle|rgba:0.9}};
+    border-top-color: {{color.text-primary|rgba:0.12}};
+    border-radius: {{geometry.radius-md}}px;
+    background-color: {{color.bg-base|rgba:0.55}};
+    color: {{color.text-primary}};
+    caret-color: {{sun.gold}};
+    box-shadow: none;
+}
+#input:focus { border-color: {{sun.gold|rgba:0.75}}; box-shadow: 0 0 10px {{sun.gold|rgba:0.22}}; }
+#input image { color: {{color.text-muted}}; }
+#scroll, #inner-box { background: transparent; }
+#entry {
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: {{geometry.radius-md}}px;
+    background-color: transparent;
+    color: {{color.text-secondary}};
+}
+#entry #text { color: {{color.text-secondary}}; margin-left: 8px; }
+#entry:hover { background-color: {{color.surface-hover|rgba:0.60}}; }
+#entry:selected {
+    background-color: {{color.accent-dim|rgba:0.62}};
+    border-color: {{sun.gold|rgba:0.62}};
+    box-shadow: 0 0 10px {{sun.gold|rgba:0.18}};
+    outline: none;
+}
+#entry:selected #text { color: {{color.text-primary}}; }

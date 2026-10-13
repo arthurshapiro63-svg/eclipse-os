@@ -1,0 +1,727 @@
+#!/usr/bin/env python3
+"""Apply, validate, and roll back Arthur's generated Hyprland Lua settings."""
+
+import argparse
+from contextlib import contextmanager, suppress
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+import fcntl
+import json
+import math
+import os
+import shlex
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+NAME = "arthur-settings-apply"
+CONFIG_DIR = os.path.expanduser("~/.config/hypr")
+LIVE = os.path.join(CONFIG_DIR, "arthur-generated.lua")
+BACKUP = LIVE + ".bak"
+LOCK = os.path.expanduser("~/.cache/arthur-settings-apply.lock")
+TIMEOUT = 10
+ATTEMPTS = 10
+RETRY_DELAY = 0.15
+SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+DEFAULTS = {
+    "appearance": {
+        "blur_size": 8,
+        "blur_passes": 3,
+        "active_opacity": 0.94,
+        "inactive_opacity": 0.84,
+        "border_size": 2,
+        "gaps_in": 4,
+        "gaps_out": 10,
+        "rounding": 10,
+        "shadow_range": 24,
+        "shadow_enabled": True,
+    },
+    "animations": {"preset": "liquid", "reduce_motion": False},
+}
+
+# key: (minimum, maximum, keep_float)
+BOUNDS = {
+    "blur_size": (1, 12, False),
+    "blur_passes": (1, 4, False),
+    "active_opacity": (0.5, 1.0, True),
+    "inactive_opacity": (0.5, 1.0, True),
+    "border_size": (0, 4, False),
+    "gaps_in": (0, 30, False),
+    "gaps_out": (0, 30, False),
+    "rounding": (0, 24, False),
+    "shadow_range": (0, 40, False),
+}
+
+# (leaf, duration in 100 ms units, curve, style)
+LIQUID = [
+    ("global", 10, "default", None),
+    ("border", 4, "softOut", None),
+    ("windows", 3.2, "liquid", None),
+    ("windowsIn", 3.0, "liquid", "popin 92%"),
+    ("windowsOut", 2.0, "softOut", "popin 94%"),
+    ("windowsMove", 3.2, "glide", None),
+    ("fadeIn", 2.2, "softOut", None),
+    ("fadeOut", 1.8, "softOut", None),
+    ("fade", 2.6, "softOut", None),
+    ("fadeDim", 3.0, "softOut", None),
+    ("fadeShadow", 3.0, "softOut", None),
+    ("layers", 2.8, "softOut", None),
+    ("layersIn", 2.6, "softOut", "fade"),
+    ("layersOut", 1.8, "softOut", "fade"),
+    ("fadeLayersIn", 2.2, "softOut", None),
+    ("fadeLayersOut", 1.6, "softOut", None),
+    ("workspaces", 3.4, "glide", "slidefade 20%"),
+    ("specialWorkspace", 3.4, "glide", "slidefadevert 20%"),
+    ("zoomFactor", 5, "softOut", None),
+    ("borderangle", 8, "softOut", "once"),
+]
+
+READBACK = [
+    ("blur_size", "decoration:blur:size", "int"),
+    ("blur_passes", "decoration:blur:passes", "int"),
+    ("active_opacity", "decoration:active_opacity", "float"),
+    ("inactive_opacity", "decoration:inactive_opacity", "float"),
+    ("border_size", "general:border_size", "int"),
+    ("gaps_in", "general:gaps_in", "css"),
+    ("gaps_out", "general:gaps_out", "css"),
+    ("rounding", "decoration:rounding", "int"),
+    ("shadow_range", "decoration:shadow:range", "int"),
+    ("shadow_enabled", "decoration:shadow:enabled", "bool"),
+]
+
+
+class ApplyError(Exception):
+    pass
+
+
+class InputError(ApplyError):
+    pass
+
+
+class LuaSyntaxError(ApplyError):
+    pass
+
+
+class TransactionError(ApplyError):
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.code = code
+
+
+class Interrupted(Exception):
+    pass
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise InputError(message)
+
+
+def one_line(value):
+    return " ".join(str(value).split())
+
+
+def error_text(exc):
+    return one_line(exc) or type(exc).__name__
+
+
+def reject_constant(value):
+    raise ValueError("non-finite JSON number " + value)
+
+
+def json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key " + repr(key))
+        result[key] = value
+    return result
+
+
+def check_object(value, allowed, location):
+    if type(value) is not dict:
+        raise InputError(location + " must be a JSON object")
+    unknown = sorted(set(value) - set(allowed))
+    if unknown:
+        raise InputError(location + ": unknown key " + repr(unknown[0]))
+
+
+def load_values(source):
+    try:
+        if source == "-":
+            text = sys.stdin.read()
+        else:
+            with open(os.path.expanduser(source), encoding="utf-8") as handle:
+                text = handle.read()
+
+        # Decimal avoids overflow before clamping numbers such as 1e999.
+        data = json.loads(
+            text,
+            parse_int=Decimal,
+            parse_float=Decimal,
+            parse_constant=reject_constant,
+            object_pairs_hook=json_object,
+        )
+    except (OSError, UnicodeError, ValueError, InvalidOperation) as exc:
+        raise InputError(
+            "cannot read settings JSON: " + error_text(exc)
+        ) from exc
+
+    check_object(data, DEFAULTS, "settings")
+    values = {}
+
+    for section, defaults in DEFAULTS.items():
+        supplied = data.get(section, {})
+        check_object(supplied, defaults, section)
+        values[section] = {}
+
+        for key, default in defaults.items():
+            value = supplied.get(key, default)
+            location = section + "." + key
+
+            if key in BOUNDS:
+                if type(value) not in (int, float, Decimal):
+                    raise InputError(location + " must be a JSON number")
+
+                number = Decimal(str(value))
+                if not number.is_finite():
+                    raise InputError(location + " must be finite")
+
+                low, high, keep_float = BOUNDS[key]
+                number = max(
+                    Decimal(str(low)),
+                    min(Decimal(str(high)), number),
+                )
+                value = (
+                    round(float(number), 2)
+                    if keep_float
+                    else int(round(number))
+                )
+
+            elif key in ("shadow_enabled", "reduce_motion"):
+                if type(value) is not bool:
+                    raise InputError(location + " must be a JSON boolean")
+
+            elif key == "preset":
+                if (
+                    type(value) is not str
+                    or value not in ("calm", "liquid", "snappy")
+                ):
+                    raise InputError(
+                        location + " must be one of calm, liquid, snappy"
+                    )
+
+            values[section][key] = value
+
+    return values
+
+
+def preset_rows(preset):
+    rows = []
+    for leaf, speed, curve, style in LIQUID:
+        if preset == "calm":
+            if leaf != "global":
+                speed = round(speed * 1.35, 1)
+            if leaf in ("windowsIn", "windowsMove", "windows"):
+                curve = "softOut"
+
+        elif preset == "snappy":
+            if leaf != "global":
+                speed = max(1.0, round(speed * 0.65, 1))
+            if curve in ("liquid", "glide"):
+                curve = "arthurSnap"
+
+        rows.append((leaf, speed, curve, style))
+
+    return rows
+
+
+def lua(value):
+    if type(value) is bool:
+        return "true" if value else "false"
+    return repr(value)
+
+
+def render(values, injected):
+    a = values["appearance"]
+    animations = values["animations"]
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    lines = [
+        "-- generated by arthur-settings-apply at "
+        + stamp
+        + ", do not edit by hand",
+        "-- values: "
+        + json.dumps(values, sort_keys=True, separators=(",", ":")),
+        "",
+        "hl.config({",
+        "    general = { gaps_in = %s, gaps_out = %s, border_size = %s },"
+        % (a["gaps_in"], a["gaps_out"], a["border_size"]),
+        "    decoration = {",
+        "        rounding = %s, active_opacity = %s, inactive_opacity = %s,"
+        % (
+            a["rounding"],
+            lua(a["active_opacity"]),
+            lua(a["inactive_opacity"]),
+        ),
+        "        shadow = { enabled = %s, range = %s },"
+        % (lua(a["shadow_enabled"]), a["shadow_range"]),
+        "        blur = { size = %s, passes = %s },"
+        % (a["blur_size"], a["blur_passes"]),
+        "    },",
+        "    animations = { enabled = %s }"
+        % lua(not animations["reduce_motion"]),
+        "})",
+    ]
+
+    if not animations["reduce_motion"]:
+        preset = animations["preset"]
+        lines.append("")
+
+        if preset == "snappy":
+            lines.append(
+                'hl.curve("arthurSnap", { type = "bezier", '
+                'points = { {0.05, 0.9}, {0.1, 1} } })'
+            )
+
+        lines.append(
+            "-- speed unit = 100 ms. Everything lands inside ~350 ms "
+            "so the desktop still feels fast."
+            if preset == "liquid"
+            else "-- speed unit = 100 ms."
+        )
+
+        comments = {
+            "windowsIn": "   -- slight scale + fade in",
+            "fadeDim": "   -- dim_inactive transitions",
+            "layersIn": "       -- layer surfaces fade, never pop",
+            "workspaces": "   -- short slide + fade: subtle parallax feel",
+        }
+
+        for leaf, speed, curve, style in preset_rows(preset):
+            if leaf == "borderangle":
+                lines.extend([
+                    "-- Border sweep: ONCE per focus change, not a loop. "
+                    "The loop was measured in pass 2 at",
+                    "-- +13.5 percentage points of GPU continuously "
+                    '(330 Hz redraw). "once" plays the 45deg',
+                    "-- gradient sweep when focus lands and then stops, "
+                    "so idle cost is zero.",
+                ])
+
+            line = (
+                'hl.animation({ leaf = "%s", enabled = true, '
+                'speed = %s, bezier = "%s"'
+                % (leaf, lua(speed), curve)
+            )
+            if style is not None:
+                line += ', style = "' + style + '"'
+
+            lines.append(line + " })" + comments.get(leaf, ""))
+
+
+    result = "\n".join(lines) + "\n"
+
+    if injected is not None:
+        # Preserve the supplied string; only a final newline may be added.
+        result += injected
+        if not injected.endswith("\n"):
+            result += "\n"
+
+    return result
+
+
+@contextmanager
+def exclusive_lock():
+    os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+    fd = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)  # Releases the lock; never unlink the lock file.
+
+
+def interrupt(signum, frame):
+    raise Interrupted("interrupted by " + signal.Signals(signum).name)
+
+
+@contextmanager
+def signal_handlers(handler):
+    previous = {}
+    try:
+        for sig in SIGNALS:
+            previous[sig] = signal.signal(sig, handler)
+        yield
+    finally:
+        for sig, old in previous.items():
+            signal.signal(sig, old)
+
+
+def discard(path):
+    if path is not None:
+        with suppress(OSError):
+            os.unlink(path)
+
+
+def write_temp(data, mode):
+    fd, path = tempfile.mkstemp(
+        prefix=".arthur-generated-",
+        suffix=".lua",
+        dir=CONFIG_DIR,
+    )
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            fd = None
+            handle.write(data)
+            handle.flush()
+            os.fchmod(handle.fileno(), mode)
+            os.fsync(handle.fileno())
+        return path
+    except BaseException:
+        if fd is not None:
+            os.close(fd)
+        discard(path)
+        raise
+
+
+def atomic_write(path, data, mode):
+    tmp = write_temp(data, mode)
+    try:
+        os.replace(tmp, path)
+    finally:
+        discard(tmp)
+
+
+def snapshot():
+    try:
+        info = os.lstat(LIVE)
+    except FileNotFoundError:
+        return None
+
+    if not stat.S_ISREG(info.st_mode):
+        raise ApplyError(LIVE + " must be a regular file")
+
+    with open(LIVE, "rb") as handle:
+        mode = stat.S_IMODE(os.fstat(handle.fileno()).st_mode)
+        return handle.read(), mode
+
+
+def command(argv):
+    label = shlex.join(argv)
+    try:
+        result = subprocess.run(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=TIMEOUT,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ApplyError(label + ": timed out after 10 seconds") from exc
+    except OSError as exc:
+        raise ApplyError(label + ": " + error_text(exc)) from exc
+
+    if result.returncode != 0:
+        detail = one_line(result.stdout + "\n" + result.stderr)
+        raise ApplyError(
+            "%s exited %s%s"
+            % (
+                label,
+                result.returncode,
+                ": " + detail if detail else "",
+            )
+        )
+
+    return result.stdout
+
+
+def command_json(argv):
+    output = command(argv)
+    try:
+        return json.loads(output, parse_constant=reject_constant)
+    except ValueError as exc:
+        raise ApplyError(
+            shlex.join(argv) + ": invalid JSON: " + one_line(output)
+        ) from exc
+
+
+def check_configerrors():
+    errors = command_json(["hyprctl", "configerrors", "-j"])
+
+    if (
+        type(errors) is not list
+        or any(type(item) is not str for item in errors)
+    ):
+        raise ApplyError(
+            "unexpected configerrors JSON: " + json.dumps(errors)
+        )
+
+    messages = [item.strip() for item in errors if item.strip()]
+    if messages:
+        raise ApplyError("configerrors: " + "; ".join(messages))
+
+
+def expected_values(values):
+    result = [
+        (option, kind, values["appearance"][key])
+        for key, option, kind in READBACK
+    ]
+    result.append((
+        "animations:enabled",
+        "bool",
+        not values["animations"]["reduce_motion"],
+    ))
+    return result
+
+
+def matches(actual, expected, kind):
+    if kind == "bool":
+        return type(actual) is bool and actual == expected
+
+    if kind == "int":
+        return type(actual) is int and actual == expected
+
+    if kind == "float":
+        return (
+            type(actual) in (int, float)
+            and math.isfinite(actual)
+            and abs(actual - expected) <= 0.005 + 1e-12
+        )
+
+    if kind == "css" and type(actual) is str:
+        parts = actual.split()
+        try:
+            return len(parts) == 4 and all(
+                Decimal(part).is_finite() and Decimal(part) == expected
+                for part in parts
+            )
+        except InvalidOperation:
+            return False
+
+    return False
+
+
+def check_readback(expected):
+    for option, kind, value in expected:
+        result = command_json(["hyprctl", "getoption", option, "-j"])
+
+        if type(result) is not dict:
+            raise ApplyError(
+                "invalid readback for " + option + ": " + json.dumps(result)
+            )
+
+        if result.get("option") != option:
+            raise ApplyError(
+                "invalid readback option for "
+                + option
+                + ": "
+                + json.dumps(result)
+            )
+
+        if kind not in result:
+            actual = "missing " + repr(kind) + " field"
+        elif result.get("set") is not True:
+            actual = "unset (" + json.dumps(result[kind]) + ")"
+        elif matches(result[kind], value, kind):
+            continue
+        else:
+            actual = json.dumps(result[kind])
+
+        raise ApplyError(
+            "readback mismatch: %s is %s, expected %s"
+            % (option, actual, json.dumps(value))
+        )
+
+
+def verify(expected=None):
+    last_error = None
+
+    for attempt in range(ATTEMPTS):
+        try:
+            check_configerrors()
+            if expected is not None:
+                check_readback(expected)
+            return
+        except ApplyError as exc:
+            last_error = exc
+
+        if attempt + 1 < ATTEMPTS:
+            time.sleep(RETRY_DELAY)
+
+    raise last_error
+
+
+def restore(previous):
+    failures = []
+
+    try:
+        if previous is None:
+            with suppress(FileNotFoundError):
+                os.unlink(LIVE)
+        else:
+            data, mode = previous
+            # These are the exact bytes captured for the rolling backup.
+            atomic_write(LIVE, data, mode)
+    except BaseException as exc:
+        failures.append("file restore: " + error_text(exc))
+
+    # Attempt reload and verification even if restoring the file failed.
+    try:
+        command(["hyprctl", "reload"])
+    except BaseException as exc:
+        failures.append("reload: " + error_text(exc))
+
+    try:
+        verify()
+    except BaseException as exc:
+        failures.append("verification: " + error_text(exc))
+
+    return failures
+
+
+def eval_check(tmp):
+    """Run the candidate inside the LIVE compositor before installing it.
+
+    hyprland.lua loads the generated file with pcall(require, ...), so a Lua runtime error
+    there (unknown key, wrong type) is swallowed at reload time and may never reach
+    configerrors. `hyprctl eval "dofile(...)"` surfaces the exact error (rc 7) instead.
+    It applies the values live; on failure the reload in transaction() resets them.
+    """
+    if "]]" in tmp:
+        raise ApplyError("unsafe temp path " + tmp)
+    command(["hyprctl", "eval", "dofile([[" + tmp + "]])"])
+
+
+def transaction(tmp, previous, expected, remove, precheck=True):
+    try:
+        if not remove and precheck:
+            eval_check(tmp)
+
+        if previous is not None:
+            data, mode = previous
+            atomic_write(BACKUP, data, mode)
+
+        if remove:
+            with suppress(FileNotFoundError):
+                os.unlink(LIVE)
+        else:
+            os.replace(tmp, LIVE)
+
+        command(["hyprctl", "reload"])
+        verify(expected)
+        print("ok " + LIVE, flush=True)
+
+    except BaseException as exc:
+        # Do not let a second Ctrl-C/TERM/HUP interrupt rollback.
+        with signal_handlers(signal.SIG_IGN):
+            failures = restore(previous)
+
+        message = error_text(exc) + "; restored previous file"
+        if failures:
+            message += (
+                " (restore ALSO failed: " + "; ".join(failures) + ")"
+            )
+
+        raise TransactionError(
+            message, 4 if failures else 1
+        ) from exc
+
+
+def execute(args, values):
+    with exclusive_lock():
+        if args.remove:
+            previous = snapshot()
+            transaction(None, previous, None, True)
+            return
+
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        rendered = render(values, args.inject_lua)
+        tmp = write_temp(rendered.encode("utf-8"), 0o644)
+
+        try:
+            try:
+                command(["/usr/bin/luac", "-p", tmp])
+            except ApplyError as exc:
+                raise LuaSyntaxError(error_text(exc)) from exc
+
+            if args.dry_run:
+                sys.stdout.write(rendered)
+                sys.stdout.flush()
+                return
+
+            previous = snapshot()
+            transaction(
+                tmp,
+                previous,
+                expected_values(values),
+                False,
+                precheck=not args.skip_eval_check,
+            )
+        finally:
+            discard(tmp)
+
+
+def main(argv=None):
+    parser = Parser(
+        prog=NAME,
+        usage=(
+            "%(prog)s [--dry-run] [--inject-lua LUA] [--skip-eval-check] (JSONFILE | -)\n"
+            "       %(prog)s --remove"
+        ),
+    )
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--inject-lua", metavar="LUA")
+    parser.add_argument("--remove", action="store_true")
+    # TEST HOOK: skip the live eval pre-check to prove the post-install revert path.
+    parser.add_argument("--skip-eval-check", action="store_true")
+    parser.add_argument("source", nargs="?", metavar="JSONFILE")
+
+    try:
+        with signal_handlers(interrupt):
+            args = parser.parse_args(argv)
+
+            if args.remove:
+                if (
+                    args.source is not None
+                    or args.dry_run
+                    or args.inject_lua is not None
+                ):
+                    raise InputError(
+                        "--remove cannot be combined with JSONFILE, "
+                        "--dry-run, or --inject-lua"
+                    )
+                values = None
+            else:
+                if args.source is None:
+                    raise InputError("JSONFILE or - is required")
+
+                # Reject malformed input before creating directories or the lock.
+                values = load_values(args.source)
+
+            execute(args, values)
+
+        return 0
+
+    except (Exception, KeyboardInterrupt) as exc:
+        if isinstance(exc, InputError):
+            code = 2
+        elif isinstance(exc, LuaSyntaxError):
+            code = 3
+        elif isinstance(exc, TransactionError):
+            code = exc.code
+        else:
+            code = 1
+
+        print(NAME + ": " + error_text(exc), file=sys.stderr)
+        return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

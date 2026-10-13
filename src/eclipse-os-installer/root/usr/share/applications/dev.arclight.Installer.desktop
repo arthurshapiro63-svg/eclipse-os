@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Eclipse OS
+Comment=Install Eclipse OS next to your current system, on a free disk, or on a clean disk
+Exec=arclight-installer-gui
+Icon=arclight
+Categories=System;
+Terminal=false
+StartupWMClass=dev.arclight.Installer
+Keywords=install;installer;setup;arclight;eclipse;

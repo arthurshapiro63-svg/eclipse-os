@@ -1,0 +1,12 @@
+[Unit]
+Description=Arclight: download the package databases once after install
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/pacman/sync/core.db
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for i in $(seq 30); do getent hosts archlinux.org >/dev/null && break; sleep 5; done; pacman -Sy --noconfirm'
+
+[Install]
+WantedBy=multi-user.target

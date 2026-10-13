@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Ask Eclipse
+Comment=Tell the AI what to do on this computer (Super+Shift+A)
+Exec=arclight-ask
+Icon=arclight
+Categories=System;Utility;
+Terminal=false
+Keywords=ai;ask;assistant;claude;codex;arclight;eclipse;

@@ -1,0 +1,44 @@
+#@ target: ~/.config/wofi/screenshot.css
+#@ comment: /*
+/* Glass capture menu for `shot menu` (SUPER+Print). Same language as the launcher (wofi-style.tmpl).
+   Note: `shot theme` would overwrite this file with its own older style; theme-apply owns it now. */
+* {
+    font-family: "{{font.mono}}", "{{font.ui}}", monospace;
+    font-size: 14px;
+}
+window {
+    background-color: {{color.surface|rgba:0.62}};
+    border: 1px solid {{color.border-strong|rgba:0.55}};
+    border-top-color: {{color.text-primary|rgba:0.22}};
+    border-radius: {{geometry.radius-lg}}px;
+}
+#outer-box { padding: 10px; }
+#input {
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border: 1px solid {{color.border-subtle|rgba:0.9}};
+    border-top-color: {{color.text-primary|rgba:0.12}};
+    border-radius: {{geometry.radius-md}}px;
+    background-color: {{color.bg-base|rgba:0.55}};
+    color: {{color.text-primary}};
+    caret-color: {{color.accent}};
+    box-shadow: none;
+}
+#input:focus { border-color: {{color.accent|rgba:0.85}}; }
+#input image { color: {{color.text-muted}}; }
+#scroll, #inner-box { background: transparent; }
+#entry {
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: {{geometry.radius-md}}px;
+    background-color: transparent;
+    color: {{color.text-secondary}};
+}
+#entry #text { color: {{color.text-secondary}}; }
+#entry:hover { background-color: {{color.surface-hover|rgba:0.60}}; }
+#entry:selected {
+    background-color: {{color.accent|rgba:0.18}};
+    border-color: {{color.accent}};
+    outline: none;
+}
+#entry:selected #text { color: {{color.text-primary}}; }

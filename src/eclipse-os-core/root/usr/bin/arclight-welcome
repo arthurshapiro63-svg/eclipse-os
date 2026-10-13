@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import os, sys
+_here = os.path.dirname(os.path.realpath(__file__))
+for _c in (os.path.join(_here, ".."), "/usr/lib/arclight"):
+    if os.path.isdir(os.path.join(_c, "arclight")):
+        sys.path.insert(0, os.path.abspath(_c)); break
+from arclight.apps.welcome import main
+sys.exit(main())

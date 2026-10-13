@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Eclipse Settings
+GenericName=Settings
+Comment=Every setting on the machine: appearance, wallpaper, input, sound, network, system and AI
+Exec=arclight-settings
+Icon=arclight
+Terminal=false
+Categories=Settings;System;
+Keywords=settings;preferences;theme;wallpaper;keyboard;mouse;sound;network;ai;arclight;eclipse;
+StartupWMClass=dev.arclight.Settings
+StartupNotify=true

@@ -1,0 +1,96 @@
+#@ target: ~/.config/eza/theme.yml
+#@ comment: #
+# {{meta.name}} eza theme -- tokens from ~/.config/theme/tokens/{{meta.slug}}.json
+# Directories carry the accent; everything else sits in the grey-blue ramp, with
+# semantic colours only where they mean something (exec, write bit, git state, root).
+colourful: true
+
+filekinds:
+  normal:       { foreground: "#{{color.text-secondary|hex}}", is_bold: false }
+  directory:    { foreground: "#{{color.accent|hex}}", is_bold: true }
+  symlink:      { foreground: "#{{glow.high|hex}}", is_bold: false }
+  pipe:         { foreground: "#{{color.warning|hex}}", is_bold: false }
+  block_device: { foreground: "#{{color.warning|hex}}", is_bold: true }
+  char_device:  { foreground: "#{{color.warning|hex}}", is_bold: false }
+  socket:       { foreground: "#{{ansi.magenta|hex}}", is_bold: false }
+  special:      { foreground: "#{{ansi.magenta|hex}}", is_bold: false }
+  executable:   { foreground: "#{{color.success|hex}}", is_bold: true }
+  mount_point:  { foreground: "#{{color.accent-bright|hex}}", is_bold: true, is_underline: true }
+
+perms:
+  user_read:          { foreground: "#{{color.text-secondary|hex}}", is_bold: false }
+  user_write:         { foreground: "#{{color.warning|hex}}", is_bold: false }
+  user_execute_file:  { foreground: "#{{color.success|hex}}", is_bold: true, is_underline: false }
+  user_execute_other: { foreground: "#{{color.success|hex}}", is_bold: false }
+  group_read:         { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  group_write:        { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  group_execute:      { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  other_read:         { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  other_write:        { foreground: "#{{color.error|hex}}", is_bold: false }
+  other_execute:      { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  special_user_file:  { foreground: "#{{ansi.magenta|hex}}", is_bold: false }
+  special_other:      { foreground: "#{{ansi.magenta|hex}}", is_bold: false }
+  attribute:          { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+
+size:
+  major:       { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  minor:       { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  number_byte: { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  number_kilo: { foreground: "#{{color.text-secondary|hex}}", is_bold: false }
+  number_mega: { foreground: "#{{glow.high|hex}}", is_bold: false }
+  number_giga: { foreground: "#{{color.accent-bright|hex}}", is_bold: false }
+  number_huge: { foreground: "#{{color.warning|hex}}", is_bold: false }
+  unit_byte:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  unit_kilo:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  unit_mega:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  unit_giga:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  unit_huge:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+
+users:
+  user_you:    { foreground: "#{{color.text-secondary|hex}}", is_bold: false }
+  user_root:   { foreground: "#{{color.error|hex}}", is_bold: false }
+  user_other:  { foreground: "#{{color.warning|hex}}", is_bold: false }
+  group_yours: { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  group_other: { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  group_root:  { foreground: "#{{color.error|hex}}", is_bold: false }
+
+links:
+  normal:          { foreground: "#{{glow.high|hex}}", is_bold: false }
+  multi_link_file: { foreground: "#{{color.warning|hex}}", is_bold: false }
+
+git:
+  new:        { foreground: "#{{color.success|hex}}", is_bold: false }
+  modified:   { foreground: "#{{color.warning|hex}}", is_bold: false }
+  deleted:    { foreground: "#{{color.error|hex}}", is_bold: false }
+  renamed:    { foreground: "#{{glow.high|hex}}", is_bold: false }
+  ignored:    { foreground: "#{{color.border-strong|hex}}", is_bold: false }
+  conflicted: { foreground: "#{{color.error|hex}}", is_bold: true }
+
+git_repo:
+  branch_main:  { foreground: "#{{color.text-secondary|hex}}", is_bold: false }
+  branch_other: { foreground: "#{{color.warning|hex}}", is_bold: false }
+  git_clean:    { foreground: "#{{color.success|hex}}", is_bold: false }
+  git_dirty:    { foreground: "#{{color.warning|hex}}", is_bold: false }
+
+file_type:
+  image:      { foreground: "#{{ansi.magenta|hex}}", is_bold: false }
+  video:      { foreground: "#{{ansi.bright-magenta|hex}}", is_bold: false }
+  music:      { foreground: "#{{glow.high|hex}}", is_bold: false }
+  crypto:     { foreground: "#{{color.success|hex}}", is_bold: false }
+  document:   { foreground: "#{{color.text-primary|hex}}", is_bold: false }
+  compressed: { foreground: "#{{ansi.bright-red|hex}}", is_bold: false }
+  temp:       { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  compiled:   { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+  build:      { foreground: "#{{color.warning|hex}}", is_underline: true }
+  source:     { foreground: "#{{glow.peak|hex}}", is_bold: false }
+
+punctuation:         { foreground: "#{{color.border-strong|hex}}", is_bold: false }
+date:                { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+inode:               { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+blocks:              { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+header:              { foreground: "#{{color.text-primary|hex}}", is_underline: true }
+octal:               { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+flags:               { foreground: "#{{color.text-muted|hex}}", is_bold: false }
+control_char:        { foreground: "#{{color.error|hex}}", is_bold: false }
+broken_symlink:      { foreground: "#{{color.error|hex}}", is_bold: false }
+broken_path_overlay: { is_underline: true }

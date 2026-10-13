@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# DMS palette + light/dark mode. settings.json is palette-independent, so no DMS restart.
+exec python3 "$HOME/.config/theme/apply-dms.py" theme

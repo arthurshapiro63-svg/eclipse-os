@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Green "hacker" intro shown on tty1 right before Hyprland starts.
+# Purely cosmetic: ~3 seconds, press any key to skip.
+
+cols=$(tput cols 2>/dev/null || echo 80)
+rows=$(tput lines 2>/dev/null || echo 25)
+chars='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef#$%&*+=<>/\|{}[]'
+nchars=${#chars}
+
+G=$'\e[0;32m' B=$'\e[1;32m' W=$'\e[1;37m' R=$'\e[0m'
+skip() { read -rsn1 -t "$1" && exit 0; return 0; }
+
+cleanup() { printf '%s\e[?25h' "$R"; }
+trap cleanup EXIT
+printf '\e[?25l\e[2J\e[H'
+
+# --- falling letters ---------------------------------------------------
+declare -a head len
+for ((c = 1; c <= cols; c += 2)); do
+    head[c]=$((-(RANDOM % rows)))
+    len[c]=$((6 + RANDOM % 12))
+done
+
+for ((f = 0; f < 45; f++)); do
+    buf=
+    for ((c = 1; c <= cols; c += 2)); do
+        h=${head[c]}
+        if ((h >= 1 && h <= rows)); then
+            buf+="\e[${h};${c}H${W}${chars:RANDOM%nchars:1}"
+        fi
+        if ((h - 1 >= 1 && h - 1 <= rows)); then
+            buf+="\e[$((h - 1));${c}H${B}${chars:RANDOM%nchars:1}"
+        fi
+        if ((h - 3 >= 1 && h - 3 <= rows)); then
+            buf+="\e[$((h - 3));${c}H${G}${chars:RANDOM%nchars:1}"
+        fi
+        t=$((h - len[c]))
+        if ((t >= 1 && t <= rows)); then
+            buf+="\e[${t};${c}H "
+        fi
+        head[c]=$((h + 1))
+        if ((t > rows)); then
+            head[c]=$((-(RANDOM % 8)))
+            len[c]=$((6 + RANDOM % 12))
+        fi
+    done
+    printf '%b' "$buf"
+    skip 0.035
+done
+
+# --- typed status lines ------------------------------------------------
+printf '%s\e[2J' "$R"
+lines=(
+    "> establishing secure uplink ........ OK"
+    "> bypassing mainframe firewall ...... OK"
+    "> decrypting kernel $(uname -r) ... OK"
+    "> loading Hyprland ................. OK"
+)
+top=$((rows / 2 - 3)) left=$((cols / 2 - 22))
+((left < 1)) && left=1
+for i in "${!lines[@]}"; do
+    printf '\e[%d;%dH%s' $((top + i)) "$left" "$G"
+    s=${lines[i]}
+    for ((k = 0; k < ${#s}; k++)); do
+        printf '%s' "${s:k:1}"
+        skip 0.008
+    done
+done
+
+msg="ACCESS GRANTED -- welcome, ${USER:-arthur}"
+printf '\e[%d;%dH%s%s' $((top + ${#lines[@]} + 1)) $((cols / 2 - ${#msg} / 2)) "$W" "$msg"
+skip 0.8
+printf '%s\e[2J\e[H' "$R"

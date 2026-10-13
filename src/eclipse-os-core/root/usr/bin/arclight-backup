@@ -1,0 +1,449 @@
+#!/usr/bin/env python3
+"""drive_backup.py: back up a home folder to Google Drive so it can be restored EXACTLY (same paths,
+permissions, owners, links, timestamps, empty folders), and restore it later (e.g. on Arclight).
+
+  drive_backup.py plan                      list the archives that would be made (no upload)
+  drive_backup.py backup [--jobs 2]         upload (resumable: finished archives are skipped)
+  drive_backup.py status                    progress of a running/finished backup
+  drive_backup.py restore --into DIR        download, verify checksums, unpack, verify every file
+  drive_backup.py verify --into DIR         compare a restored home against the recorded file lists
+
+How: one tar archive per top-level item (big containers split one level deeper), streamed through
+zstd straight to Drive with rclone (nothing staged on disk), sha256 of every archive recorded. For
+every archive a file list (path, type, size, mode, owner, mtime, link target) is stored too, so a
+restore can be checked file by file. Secrets are excluded and never leave this computer.
+"""
+import argparse
+import hashlib
+import json
+import os
+import shlex
+import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HOME = Path(os.environ.get("BACKUP_HOME", Path.home()))
+REMOTE = os.environ.get("BACKUP_REMOTE", "gdrive:Arclight home backup")
+STATE = Path(os.environ.get("BACKUP_STATE", Path.home() / ".cache/arclight-backup"))
+RCLONE = os.environ.get("RCLONE", "rclone")
+
+# Containers whose children become separate archives (keeps each archive a sane size and lets an
+# interrupted upload resume where it stopped).
+SPLIT = [".local/share", ".local", "Projects", ".config", "vms", ".local/share/Steam",
+         ".local/share/Steam/steamapps", ".local/share/Steam/steamapps/common", ".cache"]
+
+# Never uploaded: keys, logins, tokens, saved passwords, cookies, the encrypted SECRETFILES.
+SECRET_PATHS = [
+    ".ssh", ".gnupg", ".pki", ".local/share/keyrings", ".password-store", "SECRETFILES",
+    ".config/meshy", ".config/sketchfab", ".config/obs-rec", ".config/gh", ".config/rclone",
+    ".claude/.credentials.json", ".codex/auth.json", ".local/share/opencode/auth.json",
+    ".local/share/PrismLauncher/accounts.json", ".minecraft/launcher_accounts.json",
+    ".minecraft/launcher_accounts_microsoft_store.json", ".minecraft/launcher_msa_credentials.bin",
+    ".local/share/Steam/config/loginusers.vdf", ".local/share/Steam/config/config.vdf", ".steam/steam.token",
+    ".local/share/bedrock-on-linux/msa", ".local/share/bedrock-on-linux/winegdk-preauth",
+    ".ollama/id_ed25519", "vms/arclight-builder/id_ed25519", ".netrc", ".git-credentials",
+    ".docker/config.json", ".config/go/telemetry/local/upload.token",
+]
+SECRET_NAMES = ["Cookies", "Cookies-journal", "Login Data", "Login Data-journal", "Login Data For Account",
+                "Login Data For Account-journal", "Trust Tokens", "Trust Tokens-journal", "Web Data",
+                "Web Data-journal", "key4.db", "logins.json", "logins-backup.json", "cookies.sqlite",
+                "cookies.sqlite-wal", "cookies.sqlite-shm", "signedInUser.json", "ssfn*", "*.key"]
+
+
+def is_secret(rel):
+    return any(rel == s or rel.startswith(s + "/") for s in SECRET_PATHS)
+
+
+def items():
+    """Top-level items (with SPLIT containers expanded), as paths relative to HOME."""
+    out, queue = [], sorted(p.name for p in HOME.iterdir())
+    while queue:
+        rel = queue.pop(0)
+        p = HOME / rel
+        if is_secret(rel):
+            continue
+        if rel in SPLIT and p.is_dir() and not p.is_symlink():
+            queue = sorted(f"{rel}/{c.name}" for c in p.iterdir()) + queue
+            continue
+        out.append(rel)
+    return out
+
+
+def archive_name(rel):
+    return rel.replace("/", "__") + ".tar.zst"
+
+
+def tar_cmd(rel):
+    ex = []
+    for s in SECRET_PATHS:
+        if s.startswith(rel + "/"):
+            ex.append(f"--exclude=./{s}")
+    for n in SECRET_NAMES:
+        ex.append(f"--exclude={n}")
+    return ["tar", "--create", "--file=-", "--xattrs", "--acls", "--numeric-owner", "--sparse", "--warning=no-file-changed",
+            "--warning=no-file-ignored", "-C", str(HOME)] + ex + ["--", f"./{rel}"]
+
+
+def file_list(rel):
+    """Recorded per archive so a restore can be compared file by file."""
+    rows = []
+    base = HOME / rel
+    walk = [(str(base.parent), [], [base.name])] if not base.is_dir() or base.is_symlink() else None
+    if walk is None:
+        rows.append(_row(base))
+        for dp, dns, fns in os.walk(base, followlinks=False):
+            for n in sorted(dns + fns):
+                p = Path(dp) / n
+                r = os.path.relpath(p, HOME)
+                if is_secret(r) or _secret_name(n):
+                    if n in dns:
+                        dns.remove(n)
+                    continue
+                rows.append(_row(p))
+    else:
+        rows.append(_row(base))
+    return [r for r in rows if r]
+
+
+def _secret_name(n):
+    import fnmatch
+    return any(fnmatch.fnmatch(n, pat) for pat in SECRET_NAMES)
+
+
+def _row(p):
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return None
+    import stat as S
+    kind = "l" if S.S_ISLNK(st.st_mode) else "d" if S.S_ISDIR(st.st_mode) else "f" if S.S_ISREG(st.st_mode) else "o"
+    return [os.path.relpath(p, HOME), kind, st.st_size if kind == "f" else 0, st.st_mode & 0o7777, st.st_uid, st.st_gid,
+            int(st.st_mtime), os.readlink(p) if kind == "l" else ""]
+
+
+def load_state():
+    f = STATE / "state.json"
+    try:
+        return json.loads(f.read_text())
+    except (OSError, ValueError):
+        return {"remote": REMOTE, "done": {}, "failed": {}}
+
+
+def save_state(st):
+    STATE.mkdir(parents=True, exist_ok=True)
+    tmp = STATE / "state.json.tmp"
+    tmp.write_text(json.dumps(st, indent=1))
+    os.replace(tmp, STATE / "state.json")
+
+
+lock = threading.Lock()
+STALL = int(os.environ.get("ARCLIGHT_BACKUP_STALL", "900"))  # seconds without progress before an upload is restarted
+
+
+def upload_one(rel, st, log):
+    name = archive_name(rel)
+    lists = STATE / "lists"
+    lists.mkdir(parents=True, exist_ok=True)
+    rows = file_list(rel)
+    (lists / (name + ".json")).write_text(json.dumps(rows))
+    t0 = time.time()
+    tar = subprocess.Popen(tar_cmd(rel), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    zstd = subprocess.Popen(["zstd", "-T0", "-3", "-q", "-c"], stdin=tar.stdout, stdout=subprocess.PIPE)
+    tar.stdout.close()
+    rc = subprocess.Popen([RCLONE, "rcat", "--drive-chunk-size", "256M", "--retries", "5", "--low-level-retries", "30",
+                           "--tpslimit", "10", "--drive-pacer-min-sleep", "100ms", "--drive-pacer-burst", "20",
+                           f"{REMOTE}/data/{name}"], stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+                          start_new_session=True)
+    h = hashlib.sha256()
+    n = 0
+    # Drive's rate limit can stall an upload for hours (rclone keeps retrying a throttled chunk), while a
+    # fresh attempt then finishes in minutes: kill an upload that made no progress for STALL seconds.
+    last = [time.time()]
+    stalled = [False]
+    done_ev = threading.Event()
+
+    def watch():
+        while not done_ev.wait(30):
+            if time.time() - last[0] > STALL:
+                stalled[0] = True
+                try:
+                    os.killpg(rc.pid, signal.SIGKILL)  # rclone and anything it started
+                except OSError:
+                    pass
+                for p in (zstd, tar):
+                    try:
+                        p.kill()
+                    except OSError:
+                        pass
+                return
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        while True:
+            chunk = zstd.stdout.read(1 << 22)
+            if not chunk:
+                break
+            h.update(chunk)
+            n += len(chunk)
+            rc.stdin.write(chunk)
+            last[0] = time.time()
+            with lock:
+                st.setdefault("progress", {})[name] = n
+        rc.stdin.close()
+    except (BrokenPipeError, ValueError, OSError):
+        pass
+    # rclone may still be uploading its last chunks after stdin closed: keep the stall clock running
+    while rc.poll() is None and not stalled[0]:
+        time.sleep(2)
+    done_ev.set()
+    terr = tar.stderr.read().decode(errors="replace")
+    tcode, zcode, rcode = tar.wait(), zstd.wait(), rc.wait()
+    rerr = rc.stderr.read().decode(errors="replace")
+    ok = tcode in (0, 1) and zcode == 0 and rcode == 0 and not stalled[0]  # tar 1 = a file changed while read
+    if stalled[0]:
+        rerr = f"stalled: no progress for {STALL // 60} min (Drive rate limit), killed for a fresh attempt"
+    rec = {"item": rel, "archive": name, "bytes": n, "sha256": h.hexdigest(), "files": len(rows),
+           "seconds": round(time.time() - t0, 1), "tar_code": tcode, "time": time.time()}
+    with lock:
+        st.get("progress", {}).pop(name, None)
+        if ok:
+            st["done"][name] = rec
+            st["failed"].pop(name, None)
+        else:
+            st["failed"][name] = {**rec, "error": (terr + rerr)[-800:]}
+        save_state(st)
+    log(f"{'ok  ' if ok else 'FAIL'} {rel}  {n / 2**30:.2f} GiB  {rec['seconds']}s" + ("" if ok else f"  {(terr + rerr)[-200:]}"))
+    return ok
+
+
+def cmd_plan(a):
+    its = items()
+    total = 0
+    for rel in its:
+        out = subprocess.run(["du", "-sxB1", str(HOME / rel)], capture_output=True, text=True).stdout
+        size = int(out.split()[0]) if out else 0
+        total += size
+        if size > 2**30 or a.all:
+            print(f"{size / 2**30:8.2f} GiB  {rel}")
+    print(f"{len(its)} archives, about {total / 2**30:.0f} GiB before compression (secrets excluded)")
+
+
+def cmd_backup(a):
+    st = load_state()
+    log_f = open(STATE / "backup.log", "a")
+
+    def log(msg):
+        line = f"[{time.strftime('%H:%M:%S')}] {msg}"
+        log_f.write(line + "\n")
+        log_f.flush()
+        print(line, flush=True)
+
+    its = [r for r in items() if archive_name(r) not in st["done"]]
+    st["total_items"] = len(items())
+    st["started"] = st.get("started") or time.time()
+    save_state(st)
+    log(f"{len(its)} archives to upload ({len(st['done'])} already done) -> {REMOTE}")
+    # biggest first in parallel workers
+    sizes = {}
+    for r in its:
+        out = subprocess.run(["du", "-sxB1", str(HOME / r)], capture_output=True, text=True).stdout
+        sizes[r] = int(out.split()[0]) if out else 0
+    st["planned_bytes"] = sum(sizes.values()) + sum(d.get("bytes", 0) for d in st["done"].values())
+    save_state(st)
+    def tier(r):  # irreplaceable first; re-downloadable bulk last
+        if r.startswith(".local/share/Steam/steamapps"):
+            return 3
+        if r.startswith(".cache"):
+            return 2
+        if r.startswith("vms"):
+            return 1
+        return 0
+    queue = sorted(its, key=lambda r: (tier(r), -sizes[r]))
+    qlock = threading.Lock()
+
+    def worker():
+        while True:
+            with qlock:
+                if not queue:
+                    return
+                rel = queue.pop(0)
+            for attempt in range(6):
+                if upload_one(rel, st, log):
+                    break
+                time.sleep(60 * (attempt + 1))
+
+    ts = [threading.Thread(target=worker) for _ in range(a.jobs)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    upload_index(st, finished=True)
+    log(f"DONE: {len(st['done'])} archives uploaded, {len(st['failed'])} failed")
+
+
+def upload_index(st, finished=False):
+    """The manifest (checksums) + file lists + this script travel with the backup. Also run mid-backup
+    (`checkpoint`), so a crash or power cut still leaves every finished archive restorable."""
+    man = STATE / "manifest.json"
+    tmp = man.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"home": str(HOME), "created": st["started"],
+                               "finished": time.time() if finished else None, "partial": not finished,
+                               "archives": st["done"], "secrets_excluded": SECRET_PATHS + SECRET_NAMES}, indent=1))
+    tmp.replace(man)
+    r1 = subprocess.run([RCLONE, "copy", str(man), f"{REMOTE}/"], check=False).returncode
+    r2 = subprocess.run([RCLONE, "copy", str(STATE / "lists"), f"{REMOTE}/lists/"], check=False).returncode
+    subprocess.run([RCLONE, "copyto", __file__, f"{REMOTE}/drive_backup.py"], check=False)
+    return r1 or r2
+
+
+def cmd_checkpoint(a):
+    st = load_state()
+    rc = upload_index(st, finished=False)
+    print(f"index uploaded for {len(st.get('done', {}))} finished archives" if rc == 0 else f"upload failed ({rc})")
+    return rc
+
+
+def cmd_status(a):
+    st = load_state()
+    done = st.get("done", {})
+    up = sum(d["bytes"] for d in done.values()) + sum(st.get("progress", {}).values())
+    el = time.time() - st.get("started", time.time())
+    rate = up / el if el > 0 else 0
+    print(f"archives done: {len(done)} / {st.get('total_items', '?')}, failed: {len(st.get('failed', {}))}")
+    print(f"uploaded: {up / 2**30:.1f} GiB compressed, {rate / 2**20:.1f} MiB/s, running {el / 3600:.1f} h")
+    for n, b in st.get("progress", {}).items():
+        print(f"  uploading {n}: {b / 2**30:.2f} GiB so far")
+
+
+def cmd_restore(a):
+    """Download every archive, check its sha256, unpack it into --into, then verify the file lists."""
+    into = Path(a.into)
+    into.mkdir(parents=True, exist_ok=True)
+    src = Path(a.from_dir) if getattr(a, "from_dir", None) else None
+    if src:
+        # a folder downloaded from drive.google.com (no rclone needed): manifest.json, lists/, data/
+        tmp = src
+    else:
+        tmp = Path(a.into) / ".arclight-restore"
+        tmp.mkdir(exist_ok=True)
+        subprocess.run([RCLONE, "copy", f"{REMOTE}/manifest.json", str(tmp)], check=True)
+        subprocess.run([RCLONE, "copy", f"{REMOTE}/lists", str(tmp / "lists")], check=True)
+    man = json.loads((tmp / "manifest.json").read_text())
+    if man.get("partial"):
+        print(f"note: this index is from mid-backup ({len(man['archives'])} archives finished at that point)")
+    only = getattr(a, "only", None) or []
+    sel = {n: r for n, r in man["archives"].items()
+           if not only or any(r["item"] == o or r["item"].startswith(o.rstrip("/") + "/") for o in only)}
+    if not sel:
+        print("nothing matches --only")
+        return 1
+    bad = []
+    for name, rec in sorted(sel.items()):
+        if src:
+            if not (src / "data" / name).exists():
+                print(f"MISSING {rec['item']} (data/{name} not in the downloaded folder)")
+                bad.append(name)
+                continue
+            cat = subprocess.Popen(["cat", str(src / "data" / name)], stdout=subprocess.PIPE)
+        else:
+            cat = subprocess.Popen([RCLONE, "cat", f"{REMOTE}/data/{name}"], stdout=subprocess.PIPE)
+        unz = subprocess.Popen(["zstd", "-d", "-q", "-c"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        tar = subprocess.Popen(["tar", "--extract", "--file=-", "--xattrs", "--acls", "--numeric-owner",
+                                "--same-permissions", "--sparse", "-C", str(into)], stdin=unz.stdout)
+        unz.stdout.close()
+        h = hashlib.sha256()
+        while True:
+            c = cat.stdout.read(1 << 22)
+            if not c:
+                break
+            h.update(c)
+            unz.stdin.write(c)
+        unz.stdin.close()
+        ok = cat.wait() == 0 and unz.wait() == 0 and tar.wait() == 0 and h.hexdigest() == rec["sha256"]
+        print(f"{'ok  ' if ok else 'FAIL'} {rec['item']}")
+        if not ok:
+            bad.append(name)
+    if bad:
+        print(f"{len(bad)} archives failed: {bad[:10]}")
+        return 2
+    return cmd_verify(argparse.Namespace(into=a.into, lists=str(tmp / "lists"),
+                                         archives=list(sel)))
+
+
+def cmd_verify(a):
+    into = Path(a.into)
+    lists = Path(getattr(a, "lists", None) or STATE / "lists")
+    diffs, n = [], 0
+    want = getattr(a, "archives", None)
+    for f in sorted(lists.glob("*.json")):
+        if want is not None and f.name.removesuffix(".json") not in want:
+            continue
+        for rel, kind, size, mode, uid, gid, mtime, link in json.loads(f.read_text()):
+            n += 1
+            r = _row(into / rel)
+            if r is None:
+                diffs.append(f"missing {rel}")
+            elif r[1] != kind or (kind == "f" and r[2] != size) or r[3] != mode or (kind != "l" and r[6] != mtime) or r[7] != link:
+                diffs.append(f"differs {rel}")
+    print(f"checked {n} entries: {len(diffs)} differences")
+    for d in diffs[:30]:
+        print("  " + d)
+    return 0 if not diffs else 3
+
+
+def cmd_secrets(a):
+    """Copy the secrets (never on Drive) from the old system's home, e.g. /host/home/arthur on a side-by-side
+    Arclight install. Keys, logins, tokens, browser passwords/cookies, SECRETFILES."""
+    import fnmatch
+    import shutil
+    src, dst = Path(a.source), Path(a.into)
+    n = 0
+    for s_ in SECRET_PATHS:
+        sp = src / s_
+        if sp.exists() or sp.is_symlink():
+            dp = dst / s_
+            dp.parent.mkdir(parents=True, exist_ok=True)
+            if sp.is_dir() and not sp.is_symlink():
+                shutil.copytree(sp, dp, symlinks=True, dirs_exist_ok=True)
+            else:
+                shutil.copy2(sp, dp, follow_symlinks=False)
+            n += 1
+    for dp_, dns, fns in os.walk(src):
+        rel_dir = os.path.relpath(dp_, src)
+        if rel_dir.startswith((".local/share/Steam/steamapps", "vms", ".cache")):
+            dns[:] = []
+            continue
+        for f in fns:
+            if any(fnmatch.fnmatch(f, pat) for pat in SECRET_NAMES):
+                sp = Path(dp_) / f
+                dp = dst / rel_dir / f
+                if dp.parent.exists():
+                    shutil.copy2(sp, dp, follow_symlinks=False)
+                    n += 1
+    print(f"copied {n} secret files/folders from {src} into {dst}")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("plan"); p.add_argument("--all", action="store_true"); p.set_defaults(fn=cmd_plan)
+    b = sub.add_parser("backup"); b.add_argument("--jobs", type=int, default=2); b.set_defaults(fn=cmd_backup)
+    s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
+    r = sub.add_parser("restore"); r.add_argument("--into", required=True)
+    r.add_argument("--from", dest="from_dir",
+                   help="restore from a folder downloaded via drive.google.com instead of rclone")
+    r.add_argument("--only", action="append", help="restore just this item (e.g. Projects/pycraft); repeatable")
+    r.set_defaults(fn=cmd_restore)
+    c = sub.add_parser("checkpoint", help="upload the index of the archives finished so far")
+    c.set_defaults(fn=cmd_checkpoint)
+    se = sub.add_parser("secrets"); se.add_argument("--source", required=True); se.add_argument("--into", required=True); se.set_defaults(fn=cmd_secrets)
+    v = sub.add_parser("verify"); v.add_argument("--into", required=True); v.add_argument("--lists"); v.set_defaults(fn=cmd_verify)
+    a = ap.parse_args()
+    return a.fn(a) or 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

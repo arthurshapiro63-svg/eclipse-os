@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+<action>
+	<icon>arclight</icon>
+	<name>Ask Eclipse about this</name>
+	<submenu></submenu>
+	<unique-id>eclipse-ask-about-this</unique-id>
+	<command>arclight-ask --prefill "About %F: "</command>
+	<description>Ask the AI about the selected files or folders</description>
+	<range></range>
+	<patterns>*</patterns>
+	<directories/>
+	<audio-files/>
+	<image-files/>
+	<other-files/>
+	<text-files/>
+	<video-files/>
+</action>
+</actions>

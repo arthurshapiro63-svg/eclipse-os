@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# The local model server for Eclipse AI (systemd user unit eclipse-ai-ollama.service), the same way
+# Arch AI runs its own (by Arthur): started on demand by the window, stopped when it closes, and as a
+# safety net it stops itself when no Eclipse AI window has been open for 90 seconds.
+# Models: Arthur's Arch AI models when a migrated home has them (~/.local/share/arch-ai/models, shared,
+# never moved), else ~/.local/share/eclipse-ai/models.
+OLLAMA_BIN="$(command -v ollama)"
+if [ -z "$OLLAMA_BIN" ]; then echo "eclipse-ai-ollama: ollama is not installed (pacman -S ollama ollama-vulkan)" >&2; exit 1; fi
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+if [ -z "${OLLAMA_MODELS:-}" ]; then
+    if [ -d "$DATA/arch-ai/models/manifests" ]; then OLLAMA_MODELS="$DATA/arch-ai/models"
+    else OLLAMA_MODELS="$DATA/eclipse-ai/models"; fi
+fi
+export OLLAMA_MODELS
+export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
+export OLLAMA_VULKAN=1          # use the GPU through Vulkan (Radeon iGPU on Arthur's laptop)
+export OLLAMA_IGPU_ENABLE=1     # Ollama skips integrated GPUs unless told otherwise
+export OLLAMA_FLASH_ATTENTION=1
+export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-15m}"   # unload the model after 15 min idle
+export OLLAMA_MAX_LOADED_MODELS=1
+export OLLAMA_NUM_PARALLEL=1
+mkdir -p "$OLLAMA_MODELS"
+
+"$OLLAMA_BIN" serve &
+OLL=$!
+trap 'kill "$OLL" 2>/dev/null; wait "$OLL"; exit 0' TERM INT
+idle=0
+while kill -0 "$OLL" 2>/dev/null; do
+    sleep 10
+    # the window (its launcher is named eclipse-ai), a terminal timed run, or an `ollama pull/run`
+    if pgrep -x eclipse-ai >/dev/null 2>&1 || pgrep -f "^[^ ]*python3?[^ ]* [^ ]*/eclipse-ai( |$)" >/dev/null 2>&1 \
+       || pgrep -x ollama | grep -qv "^$OLL$"; then
+        idle=0
+    else
+        idle=$((idle + 10))
+        [ "$idle" -ge 90 ] && { kill "$OLL" 2>/dev/null; wait "$OLL"; exit 0; }
+    fi
+done
+wait "$OLL"

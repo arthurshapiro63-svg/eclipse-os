@@ -1,0 +1,68 @@
+# Eclipse — shared installed-system / ISO UEFI theme.
+# The PF2 NAME records are Inter Regular 16, Inter Regular 20, Inter Regular 24.
+title-text: ""
+desktop-image: "background.png"
+desktop-image-scale-method: "crop"
+desktop-image-h-align: "center"
+desktop-image-v-align: "center"
+desktop-color: "#0B0B0D"
+title-font: "Inter Regular 24"
+title-color: "#ECEAE6"
+message-font: "Inter Regular 20"
+message-color: "#ECEAE6"
+message-bg-color: "#17181B"
+terminal-font: "Inter Regular 16"
+
++ label {
+  left = 22%
+  top = 50%-166
+  width = 56%
+  height = 38
+  text = "Choose your starting point"
+  font = "Inter Regular 24"
+  color = "#ECEAE6"
+  align = "center"
+}
+
++ boot_menu {
+  left = 22%
+  top = 50%-108
+  width = 56%
+  height = 216
+  item_font = "Inter Regular 20"
+  selected_item_font = "Inter Regular 20"
+  item_color = "#9A958E"
+  selected_item_color = "#ECEAE6"
+  icon_width = 0
+  icon_height = 0
+  item_icon_space = 0
+  item_height = 32
+  item_padding = 0
+  item_spacing = 24
+  selected_item_pixmap_style = "select_*.png"
+  scrollbar = false
+}
+
++ progress_bar {
+  id = "__timeout__"
+  left = 34%
+  top = 50%+143
+  width = 32%
+  height = 4
+  fg_color = "#FFC94A"
+  bg_color = "#34353A"
+  border_color = "#34353A"
+  font = "Inter Regular 16"
+  text = ""
+}
+
++ label {
+  left = 10%
+  top = 90%
+  width = 80%
+  height = 26
+  text = "Up / Down to choose   ·   Enter to boot   ·   e to edit   ·   c for console"
+  font = "Inter Regular 16"
+  color = "#9A958E"
+  align = "center"
+}
