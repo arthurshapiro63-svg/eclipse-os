@@ -206,8 +206,25 @@ def info(name):
     raise RPCError(f"no package named {name!r} in the repos or the AUR")
 
 
-def listing(explicit=False, foreign=False, query=None, upgradable=False):
-    """Installed packages (optionally explicit-only / foreign-only / filtered / upgradable)."""
+def _aur_pending(user):
+    """AUR packages with a newer version, checked as `user`: [{name, version, new_version}] (raises on failure)."""
+    r = run_full(["runuser", "-u", user, "--", "yay", "-Qua", "--color", "never"],
+                 env={**ENV, "HOME": pwd.getpwnam(user).pw_dir}, timeout=300)
+    ups = []
+    for line in r["stdout"].splitlines():
+        m = re.match(r"^(\S+) (\S+) -> (\S+)", line.strip())
+        if m:
+            ups.append({"name": m.group(1), "version": m.group(2), "new_version": m.group(3), "source": "aur"})
+    if r["code"] not in (0, 1) and not ups:   # yay -Qua exits 1 when there is nothing to update
+        raise RPCError(f"could not check AUR updates: {clip_text(r['stderr'] or r['stdout'], 500)}")
+    return ups
+
+
+def listing(explicit=False, foreign=False, query=None, upgradable=False, aur=False, _peer=None):
+    """Installed packages (optionally explicit-only / foreign-only / filtered / upgradable).
+
+    upgradable=true lists repo updates; with aur=true AUR updates are added (source "aur"). If the AUR
+    check fails, the repo updates are still returned with one {"error": ...} row at the end."""
     if upgradable:
         r = run_full(["checkupdates", "--nocolor"], env=ENV, timeout=300)
         ups = []
@@ -215,6 +232,13 @@ def listing(explicit=False, foreign=False, query=None, upgradable=False):
             m = re.match(r"^(\S+) (\S+) -> (\S+)", line)
             if m:
                 ups.append({"name": m.group(1), "version": m.group(2), "new_version": m.group(3)})
+        if r["code"] not in (0, 2) and not ups:   # checkupdates: 2 = nothing to update
+            raise RPCError(f"could not check for updates: {clip_text(r['stderr'] or r['stdout'], 500)}")
+        if aur and which("yay"):
+            try:
+                ups += _aur_pending(_user_of(_peer))
+            except Exception as e:
+                ups.append({"error": f"AUR check failed: {e}", "source": "aur"})
         return ups
     flags = "-Q" + ("e" if explicit else "") + ("m" if foreign else "")
     out = run(["pacman", flags], env=ENV, check=False)
@@ -281,19 +305,51 @@ def remove(names, recursive=True, nosave=False):
     return {"removed": names, "output": clip_text(r["stdout"], 6000)}
 
 
+def _versions(foreign=False):
+    out = run(["pacman", "-Qm" if foreign else "-Q"], env=ENV, check=False)
+    return dict(l.split()[:2] for l in out.splitlines() if len(l.split()) >= 2)
+
+
 def upgrade(aur=False, _peer=None):
-    """Full system upgrade (pacman -Syu), optionally AUR packages too."""
+    """Full system upgrade (pacman -Syu), optionally AUR packages too.
+
+    Returns {"status": "ok" | "partial" | "failed", "ok": bool, "updated": [...], "failed": [...],
+    "repo": {...}, "aur": {...}, "diagnostics": "...", "retry": {...}}. "partial" means some packages were
+    updated and some were not; the lists say which. A failed repo upgrade raises (nothing to keep)."""
     _check_lock()
+    before = _versions()
     r = _stream(["pacman", "-Syu", "--noconfirm"], env=ENV, timeout=7200)
-    res = {"code": r["code"], "output": clip_text(r["stdout"] + r["stderr"], 8000)}
     if r["code"] != 0:
         raise RPCError(f"pacman -Syu failed: {clip_text(r['stderr'] or r['stdout'], 3000)}")
+    mid = _versions()
+    repo_updated = sorted(n for n, v in mid.items() if before.get(n) not in (None, v))
+    res = {"status": "ok", "ok": True, "updated": list(repo_updated), "failed": [],
+           "repo": {"code": r["code"], "updated": repo_updated}, "output": clip_text(r["stdout"] + r["stderr"], 8000)}
     if aur and which("yay"):
         user = _user_of(_peer)
+        try:
+            pending = [u["name"] for u in _aur_pending(user)]
+            check_error = None
+        except Exception as e:
+            pending, check_error = [], str(e)
         a = _stream(["runuser", "-u", user, "--", "yay", "-Sua", "--noconfirm", "--answerdiff", "None",
                       "--answerclean", "None", "--sudo", "/usr/bin/arclight-asroot"],
                      env={**ENV, "HOME": pwd.getpwnam(user).pw_dir}, timeout=7200)
-        res["aur"] = {"code": a["code"], "output": clip_text(a["stdout"] + a["stderr"], 6000)}
+        after = _versions(foreign=True)
+        done = sorted(n for n in pending if after.get(n) != mid.get(n))      # version changed: updated
+        failed = sorted(n for n in pending if after.get(n) == mid.get(n))    # still the old version
+        if a["code"] != 0 and not failed:   # yay failed but we cannot name the package (e.g. the check failed)
+            failed = ["AUR packages (yay exited with an error)"]
+        res["aur"] = {"code": a["code"], "built_as": user, "pending": pending, "updated": done, "failed": failed,
+                      "check_error": check_error, "output": clip_text(a["stdout"] + a["stderr"], 6000)}
+        res["updated"] += done
+        res["failed"] += failed
+        if failed:
+            res["diagnostics"] = clip_text(a["stdout"] + a["stderr"], 3000)
+    if res["failed"]:
+        res["ok"] = False
+        res["status"] = "partial" if res["updated"] else "failed"
+        res["retry"] = {"method": "pkg.upgrade", "params": {"aur": bool(aur)}}
     return res
 
 

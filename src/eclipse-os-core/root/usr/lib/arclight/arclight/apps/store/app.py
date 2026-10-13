@@ -235,6 +235,7 @@ class Window(Adw.ApplicationWindow):
         self.search_src = 0
         self.search_state = {}
         self.updates = None
+        self.update_problem = None  # the last update that did not finish cleanly (shown until one does)
         self.confirm = None         # the open remove dialog (test hook)
         self.home_dirty = False
 
@@ -1017,8 +1018,13 @@ class Window(Adw.ApplicationWindow):
             job["pulse"] = 0
 
     def _job_done(self, job, res):
+        r = (res or {}).get("result")
+        if job["action"] == "update" and isinstance(r, dict) and r.get("status") in ("partial", "failed"):
+            return self._update_incomplete(job, res)
         self._finish_job(job)
         pv, item, action = job["view"], job["item"], job["action"]
+        if action == "update":
+            self.update_problem = None          # a clean run clears the last failure
         pv.ease.set(1.0)
         pv.pct.set_label("100%")
         title = (item.get("title") or item["name"]) if item else None
@@ -1083,6 +1089,63 @@ class Window(Adw.ApplicationWindow):
         if job["action"] == "update":
             self.upd_button.set_sensitive(True)
         self.state["job"] = "failed"
+
+    def _update_incomplete(self, job, res):
+        """An update that finished with failures: say exactly what was and was not updated, keep the
+        diagnostics, and offer Retry. Never reported as "up to date"."""
+        self._finish_job(job)
+        r = res["result"]
+        pv = job["view"]
+        done, failed = r.get("updated") or [], r.get("failed") or []
+        partial = r.get("status") == "partial"
+        pv.now.set_label("Some updates did not install" if partial else "The updates did not install")
+        pv.pct.set_label("")
+        pv.bar.add_css_class("st-bar-failed")
+        pv.line.set_visible(False)
+        msg = (f"Updated {len(done)} package{'s' if len(done) != 1 else ''}. " if done else "") + \
+              f"Not updated: {', '.join(failed)}."
+        pv.result.set_label(msg)
+        pv.result.remove_css_class("st-done")
+        pv.result.add_css_class("st-err")
+        pv.result.set_visible(True)
+        diag = r.get("diagnostics") or ""
+        if diag and diag not in pv.buf.get_text(pv.buf.get_start_iter(), pv.buf.get_end_iter(), False):
+            pv.buf.insert(pv.buf.get_end_iter(), ("\n" if pv.lines else "") + diag)
+        pv.exp.set_expanded(True)
+        snap = res.get("snapshot")
+        if snap:
+            pv.snap.set_label("A restore point was made first. If anything breaks, you can go back to it.")
+            pv.snap.set_visible(True)
+            pv.snap.arc_snapshot = snap
+        self.update_problem = {"status": r.get("status"), "updated": done, "failed": failed, "diagnostics": diag}
+        self.errors.append(("job.update", msg + ("\n" + diag if diag else "")))
+        self.toast(msg)
+        self.upd_button.set_sensitive(True)
+        self.home_dirty = True
+        self.state["job"] = "partial" if partial else "failed"
+        self.refresh_installed(lambda: (self.refresh_home_badges(), self.load_updates(rebuild=True)))
+
+    def _problem_card(self):
+        """The last update's failure, until an update finishes cleanly: what failed, why, and Retry."""
+        pb = self.update_problem
+        card = box(cls="st-card red", spacing=8)
+        card.append(lab("The last update did not finish" if pb["status"] == "failed"
+                        else "Some updates did not install", "st-empty-title"))
+        if pb["updated"]:
+            card.append(lab(f"Updated: {', '.join(pb['updated'][:12])}"
+                            + (f" and {len(pb['updated']) - 12} more" if len(pb["updated"]) > 12 else ""), "st-about"))
+        card.append(lab(f"Not updated: {', '.join(pb['failed'])}", "st-about"))
+        if pb["diagnostics"]:
+            card.append(lab(catalog.plain_error(pb["diagnostics"]), "st-note"))
+            exp = Gtk.Expander(label="Details")
+            exp.set_child(lab(pb["diagnostics"][-3000:], "st-note", selectable=True))
+            card.append(exp)
+        row = box(False, 10)
+        retry = button("Retry", "st-primary", lambda: self.start_job("update"))
+        a11y(retry, "Retry the update")
+        row.append(retry)
+        card.append(row)
+        return card
 
     # -------------------------------------------------------------- updates
     def load_updates(self, rebuild=False):
@@ -1150,6 +1213,10 @@ class Window(Adw.ApplicationWindow):
             b.append(card)
             self.state["updates"] = "error"
             return
+        problems = [u for u in ups if "error" in u]      # e.g. the AUR could not be checked
+        ups = [u for u in ups if "name" in u]
+        if getattr(self, "update_problem", None):
+            b.append(self._problem_card())
         head = box(False, 18, cls="st-card")
         if ups:
             t = box(spacing=4, hexpand=True, valign=Gtk.Align.CENTER)
@@ -1158,6 +1225,12 @@ class Window(Adw.ApplicationWindow):
             head.append(t)
             self.upd_button.set_valign(Gtk.Align.CENTER)
             head.append(self.upd_button)
+        elif problems or getattr(self, "update_problem", None):
+            t = box(spacing=4, hexpand=True, valign=Gtk.Align.CENTER)
+            t.append(lab("No other updates found", "st-big-num"))
+            t.append(lab("; ".join(p["error"] for p in problems) or "Retry the update above when you are ready.",
+                         "st-sec-sub"))
+            head.append(t)
         else:
             mark = lab("✓", "st-ok-mark", xalign=0.5, valign=Gtk.Align.CENTER, wrap=False)
             head.append(mark)
@@ -1166,6 +1239,8 @@ class Window(Adw.ApplicationWindow):
             t.append(lab("Nothing to do. Check again any time with the button at the top.", "st-sec-sub"))
             head.append(t)
         b.append(head)
+        if problems and ups:
+            b.append(lab("; ".join(p["error"] for p in problems), "st-note"))
         b.append(self.upd_progress.root)
         if ups:
             lb = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
@@ -1174,7 +1249,7 @@ class Window(Adw.ApplicationWindow):
             for u in ups:
                 row = Gtk.ListBoxRow(activatable=False)
                 h = box(False, 14)
-                item = {"name": u["name"], "source": "repo"}
+                item = {"name": u["name"], "source": u.get("source", "repo")}
                 catalog.decorate(item, self.cur)
                 h.append(icon_widget(self.get_display(), item, 36))
                 mid = box(spacing=2, hexpand=True, valign=Gtk.Align.CENTER)

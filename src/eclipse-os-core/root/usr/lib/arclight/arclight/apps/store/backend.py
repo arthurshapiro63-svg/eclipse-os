@@ -176,7 +176,7 @@ def updates():
     """Packages with a newer version (same call Settings -> System uses)."""
     if fake_mode():
         return _fake().updates()
-    return call("pkg.list", upgradable=True) or []
+    return call("pkg.list", upgradable=True, aur=True) or []
 
 
 def desktop_entry(item):

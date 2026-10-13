@@ -229,6 +229,13 @@ class Window(Adw.ApplicationWindow):
 
         def done(res):
             spinner.set_visible(False)
+            if isinstance(res, dict) and res.get("status") in ("partial", "failed"):
+                msg = (f"Updated {len(res.get('updated') or [])}; not updated: {', '.join(res.get('failed') or [])}")
+                btn.set_sensitive(True)
+                btn.set_label("Retry")
+                self.errors.append(("pkg.upgrade", msg + "\n" + (res.get("diagnostics") or "")))
+                self.toast(f"Update did not finish. {msg}")
+                return
             btn.set_label("Up to date")
             self.toast("System updated", ok=True)
             self.reload("system")

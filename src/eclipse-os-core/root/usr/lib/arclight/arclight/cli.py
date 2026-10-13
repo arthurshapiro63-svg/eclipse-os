@@ -167,7 +167,16 @@ def cmd_pkg(args):
         print("removed:", " ".join(r["removed"]))
     elif sub == "upgrade":
         r = call("pkg.upgrade", aur=aur)
-        print(r["output"][-3000:])
+        if JSON:
+            out(r)
+        else:
+            print(r["output"][-3000:])
+            if r.get("aur"):
+                print(r["aur"].get("output", "")[-2000:])
+            if r.get("status") not in (None, "ok"):
+                print(f"\nNOT FINISHED ({r['status']}): updated {len(r.get('updated') or [])}, "
+                      f"not updated: {', '.join(r.get('failed') or [])}", file=sys.stderr)
+                return 1
     elif sub == "updates":
         table(call("pkg.list", upgradable=True), ["name", "version", "new_version"])
     elif sub == "list":

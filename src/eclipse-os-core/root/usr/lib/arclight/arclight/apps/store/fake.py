@@ -17,6 +17,7 @@ HAS_FLATPAK = True
 
 INSTALLED = {}
 _UPDATES = []
+_FAILED_ONCE = []
 
 
 def reset():
@@ -32,6 +33,7 @@ def reset():
         {"name": "steam", "version": "1.0.0.83-2", "new_version": "1.0.0.84-1"},
         {"name": "zed", "version": "0.205.6-1", "new_version": "0.206.1-1"},
         {"name": "python", "version": "3.13.7-1", "new_version": "3.13.8-1"},
+        {"name": "zen-browser-bin", "version": "1.16.2b-1", "new_version": "1.16.3b-1", "source": "aur"},
     ]
 
 
@@ -135,7 +137,7 @@ def call(method, **params):
         from ..settings.backend import Unavailable
         raise Unavailable("arclightd is not running.")
     if method == "pkg.list" and params.get("upgradable"):
-        return list(_UPDATES)
+        return [u for u in _UPDATES if params.get("aur") or u.get("source") != "aur"]
     if method == "pkg.search":
         return _match(params.get("query", ""), "repo")
     raise RuntimeError(f"fake: no {method}")
@@ -217,7 +219,7 @@ def installed_apps():
 
 def updates():
     time.sleep(0.2 / _speed())
-    return call("pkg.list", upgradable=True)
+    return call("pkg.list", upgradable=True, aur=True)
 
 
 _INSTALL_LINES = """resolving dependencies...
@@ -300,11 +302,26 @@ def run_job(action, item, on_line):
             from .backend import JobError
             on_line and on_line("error: failed to commit transaction (conflicting files)")
             raise JobError("pacman -Syu failed: error: failed to commit transaction (conflicting files)")
+        if fail == "update-aur" and not _FAILED_ONCE:   # repo part works, AUR build fails: a partial result
+            _FAILED_ONCE.append(True)                     # (once: Retry then succeeds)
+            aur = [u for u in _UPDATES if u.get("source") == "aur"]
+            repo = [u for u in _UPDATES if u.get("source") != "aur"]
+            for u in repo:
+                if u["name"] in INSTALLED:
+                    INSTALLED[u["name"]] = u["new_version"]
+            diag = (f"==> Making package: {aur[0]['name']} {aur[0]['new_version']}\n==> ERROR: Failure while downloading "
+                    f"https://example.invalid/{aur[0]['name']}.tar.bz2\n -> error making: {aur[0]['name']}-exit status 4")
+            _emit(diag, on_line, 0.1 / sp)
+            _UPDATES[:] = aur
+            return {"snapshot": snapshot, "result": {
+                "status": "partial", "ok": False, "updated": [u["name"] for u in repo],
+                "failed": [u["name"] for u in aur], "diagnostics": diag,
+                "retry": {"method": "pkg.upgrade", "params": {"aur": True}}}}
         for u in _UPDATES:
             if u["name"] in INSTALLED:
                 INSTALLED[u["name"]] = u["new_version"]
         _UPDATES.clear()
-        return {"snapshot": snapshot, "result": {"code": 0}}
+        return {"snapshot": snapshot, "result": {"status": "ok", "ok": True, "code": 0}}
     if action == "remove":
         _emit(f"checking dependencies...\n\nPackages (1) {name}-1.0-1\n\nTotal Removed Size:  40.00 MiB\n\n"
               f":: Do you want to remove these packages? [Y/n]\n:: Processing package changes...\nremoving {name}...\n"

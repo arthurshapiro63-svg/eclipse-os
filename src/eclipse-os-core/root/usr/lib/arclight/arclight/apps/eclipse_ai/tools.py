@@ -494,6 +494,11 @@ def _pkg_root(ctx: ToolContext, title: str, shown: str, reasons: list[str], meth
         return ToolResult(f"failed: {_trim(str(e), 3000)}", ok=False)
     res = r["result"] or {}
     out = json.dumps(res, indent=1)[:4000] if isinstance(res, (dict, list)) else str(res)
+    if isinstance(res, dict) and res.get("status") in ("partial", "failed"):   # never report this as done
+        store.log_command(shown, 1, out, "pkg")
+        return ToolResult(f"NOT finished ({res['status']}): {shown}. Updated: {', '.join(res.get('updated') or []) or 'nothing'}. "
+                          f"Not updated: {', '.join(res.get('failed') or [])}.{_snap_text(r['snapshot'])}\n"
+                          f"{_trim(res.get('diagnostics') or '', 1500)}", ok=False)
     store.log_command(shown, 0, out, "pkg")
     return ToolResult(f"done: {shown}.{_snap_text(r['snapshot'])}\n{_trim(out, 2000)}")
 

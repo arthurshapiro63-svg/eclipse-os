@@ -393,6 +393,8 @@ def plain_error(msg):
         return "Another install or update is running. Try again when it is done."
     if "target not found" in m or "no package named" in m:
         return "That app was not found. It may have a new name."
+    if "failure while downloading" in m:
+        return "A source download for an AUR package failed (its website may be down). Retry later."
     if "failed retrieving" in m or "could not resolve" in m or "network" in m or "timed out" in m or "urlopen" in m:
         return "The download failed. Check the internet and try again."
     if "not enough free disk space" in m or "no space left" in m:
@@ -401,7 +403,7 @@ def plain_error(msg):
         return "It clashes with something already installed. Ask the AI to sort it out."
     if "breaks dependency" in m or "required by" in m:
         return "Other apps need this, so it cannot be removed on its own."
-    if "aur build failed" in m or "makepkg" in m or "build failed" in m:
+    if "aur build failed" in m or "makepkg" in m or "build failed" in m or "error making" in m:
         return "Building it from the AUR failed. Ask the AI to look at it."
     if "not running" in m:
         return "The system helper is not running, so nothing can be installed. Run arc doctor in a terminal to fix it."
