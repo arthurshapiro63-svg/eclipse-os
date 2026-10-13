@@ -1,6 +1,6 @@
 # Eclipse OS AI interface. The files under root/ are installed as-is.
 pkgname=eclipse-os-core
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Eclipse OS AI interface: system + session daemons, settings registry, arc CLI, MCP server"
 arch=('any')
@@ -25,6 +25,7 @@ options=('!strip' '!debug')
 
 package() {
     cp -a --no-preserve=ownership "$startdir/root/." "$pkgdir/"
+    find "$pkgdir" -name __pycache__ -prune -exec rm -rf {} +   # caches from local test runs are not source
     chmod 440 "$pkgdir/etc/sudoers.d/10-arclight"
     python -m compileall -q -j0 --invalidation-mode checked-hash -s "$pkgdir" -p / "$pkgdir/usr/lib/arclight"
 }

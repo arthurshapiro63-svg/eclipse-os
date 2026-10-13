@@ -5,4 +5,4 @@ autonomous mode, chat history and model loop, ported to Eclipse OS: liquid-glass
 names, root through arclightd (no password, the in-window yes stays), packages through arclightd's pkg API
 (a restore point first), Eclipse settings tools, and the global `ai.enabled` switch.
 """
-__version__ = "0.1.0"
+__version__ = "0.1.1"

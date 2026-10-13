@@ -14,7 +14,11 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT = {"name": "Eclipse OS", "version": "0.1", "codename": "Arclight", "id": "eclipse",
+from . import __version__ as _VERSION
+
+# "version" always comes from the installed eclipse-os-core (never from identity.json), so an update
+# changes os-release too; the name and the rest are the user's.
+DEFAULT = {"name": "Eclipse OS", "version": _VERSION, "codename": "Arclight", "id": "eclipse",
            "tagline": "AI-native Arch", "accent": "38;2;91;134;200"}
 
 
@@ -28,6 +32,7 @@ def load(root="/"):
         d.update(json.loads(path(root).read_text()))
     except (OSError, ValueError):
         pass
+    d["version"] = DEFAULT["version"]
     return d
 
 
@@ -75,7 +80,7 @@ def os_release(d):
             f'ID={d.get("id", DEFAULT["id"])}\n'
             f'ID_LIKE=arch\n'
             f'BUILD_ID=rolling\n'
-            f'VERSION_ID={d.get("version", "0.1")}\n'
+            f'VERSION_ID={d.get("version", DEFAULT["version"])}\n'
             f'VERSION_CODENAME={slug(d.get("codename", "ion"))}\n'
             f'ANSI_COLOR="{d.get("accent", DEFAULT["accent"])}"\n'
             f'HOME_URL="file:///usr/share/doc/arclight"\n'

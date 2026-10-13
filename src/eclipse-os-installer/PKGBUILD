@@ -1,6 +1,6 @@
 # Eclipse OS installer. The files under root/ are installed as-is.
 pkgname=eclipse-os-installer
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Eclipse OS installer (quick / advanced), migration tooling, install guide, side-by-side boot support"
 arch=('any')
@@ -16,4 +16,5 @@ options=('!strip' '!debug')
 
 package() {
     cp -a --no-preserve=ownership "$startdir/root/." "$pkgdir/"
+    find "$pkgdir" -name __pycache__ -prune -exec rm -rf {} +   # caches from local test runs are not source
 }
