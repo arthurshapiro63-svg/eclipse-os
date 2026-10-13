@@ -9,7 +9,7 @@ license=('MIT')
 depends=('python' 'python-pillow' 'python-gobject' 'at-spi2-core' 'gtk4' 'gtk4-layer-shell' 'libadwaita'
          'grim' 'slurp' 'tesseract' 'tesseract-data-eng' 'wl-clipboard' 'wtype' 'pacman-contrib' 'polkit'
          'sudo' 'libnotify' 'playerctl' 'brightnessctl' 'networkmanager' 'bluez-utils'
-         'power-profiles-daemon' 'wireplumber')
+         'power-profiles-daemon' 'wireplumber' 'terminus-font')
 makedepends=('python')
 optdepends=('yay: AUR installs through the API'
             'claude-code: the default agent'
