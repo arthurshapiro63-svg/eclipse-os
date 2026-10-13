@@ -686,9 +686,11 @@ then verified file by file. Skip it with `rite skip 12`.
 
 ## Stage 13: First boot and the final trial
 
-1. Close everything and reboot:
+1. Close everything and reboot. The first line stops the key helper that `pacman-key` left running in
+   the new system (otherwise `umount` says the target is busy):
 
    ```
+   gpgconf --homedir /mnt/etc/pacman.d/gnupg --kill all
    umount -R /mnt
    cryptsetup close arclight
    systemctl reboot

@@ -192,7 +192,9 @@ def plan(n, st):
     if n == 12:
         return ["rite skip 12"], ["recommended: skip here, bring files later with arclight-migrate or the Drive backup"]
     if n == 13:
-        return ["cp /run/arclight-rite/state.json /mnt/var/lib/arclight/rite.json", "umount -R /mnt",
+        return ["cp /run/arclight-rite/state.json /mnt/var/lib/arclight/rite.json",
+                # pacman-key in the chroot leaves gpg-agent running with /mnt open, so umount says "busy"
+                "gpgconf --homedir /mnt/etc/pacman.d/gnupg --kill all 2>/dev/null || true", "umount -R /mnt",
                 "cryptsetup close arclight"], ["then reboot and run `rite final`"]
     return [], []
 
