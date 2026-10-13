@@ -12,6 +12,10 @@ post_install() {
 post_upgrade() {
   systemd-sysusers arclight.conf 2>/dev/null
   systemd-tmpfiles --create arclight.conf 2>/dev/null
+  # 0.1.1: logs written by older versions could hold secrets in plain text; mask them and make them 0600
+  PYTHONPATH=/usr/lib/arclight python3 -m arclight.redact --scrub /var/log/arclight/actions.jsonl \
+    /var/log/arclight/events.jsonl /var/log/arclight/pkgsync.log /var/log/arclight-install.log \
+    /home/*/.local/state/arclight/actions.jsonl /home/*/.local/share/eclipse-ai/log/commands.log >/dev/null 2>&1 || true
   # restart later: this upgrade may itself be running inside arclightd (arc update / the AI's pkg.install)
   systemd-run --quiet --on-active=8 --unit="arclightd-restart-$$" systemctl try-restart arclightd.service 2>/dev/null \
     || systemctl try-restart arclightd.service 2>/dev/null

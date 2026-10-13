@@ -22,9 +22,10 @@ import time
 import traceback
 from pathlib import Path
 
-sys.path.insert(0, "/usr/lib/arclight")
+if "/usr/lib/arclight" not in sys.path:   # after anything already set up (tests use the source tree)
+    sys.path.append("/usr/lib/arclight")
 from arclight.migrate import plan as mplan, copy as mcopy   # noqa: E402
-from arclight import identity, bootcfg                       # noqa: E402
+from arclight import identity, bootcfg, redact               # noqa: E402
 
 from . import disks
 from . import partitions as parts
@@ -56,12 +57,12 @@ class Engine:
         self.efi_new = None
         self.saved_times = {}    # existing folders we add a child to: their timestamps are restored on rollback
         LOG.parent.mkdir(parents=True, exist_ok=True)
-        self.logf = open(LOG, "a")
+        self.logf = redact.open_private(LOG)   # 0600; command lines are scrubbed of secrets
 
     # ------------------------------------------------------------ plumbing
     def log(self, msg):
         line = f"[{time.strftime('%H:%M:%S')}] {msg}"
-        self.logf.write(line + "\n")
+        self.logf.write(redact.scrub_text(line) + "\n")
         self.logf.flush()
         if self.ui:
             self.ui.progress(msg)
@@ -71,16 +72,16 @@ class Engine:
     def sh(self, cmd, check=True, input=None, timeout=None, env=None):
         if isinstance(cmd, str):
             cmd = ["bash", "-c", cmd]
-        self.logf.write(f"$ {' '.join(shlex.quote(str(c)) for c in cmd)}\n")
+        self.logf.write(redact.scrub_text(f"$ {' '.join(shlex.quote(str(c)) for c in cmd)}") + "\n")
         e = None
         if env:
             e = dict(os.environ)
             e.update(env)
         p = subprocess.run([str(c) for c in cmd], capture_output=True, text=True, input=input, timeout=timeout, env=e)
         if p.stdout:
-            self.logf.write(p.stdout[-20000:])
+            self.logf.write(redact.scrub_text(p.stdout[-20000:]))
         if p.stderr:
-            self.logf.write(p.stderr[-20000:])
+            self.logf.write(redact.scrub_text(p.stderr[-20000:]))
         self.logf.flush()
         if check and p.returncode != 0:
             raise InstallError(f"{cmd[0] if cmd[0] != 'bash' else cmd[2][:60]} failed ({p.returncode}): "
@@ -163,7 +164,7 @@ class Engine:
             self.report["ok"] = False
             self.report["error"] = str(e)
             self.log(f"✗ FAILED: {e}")
-            self.logf.write(traceback.format_exc())
+            self.logf.write(redact.scrub_text(traceback.format_exc()))
             if not self.committed:
                 self.rollback()
             raise
@@ -710,7 +711,7 @@ class Engine:
             self.chroot("pacman -Sy --noconfirm", check=False, timeout=600)
             r = subprocess.run(["arch-chroot", str(T), "pacman", "-S", "--noconfirm", "--needed"] + repo,
                                capture_output=True, text=True, timeout=7200)
-            self.logf.write(r.stdout[-20000:] + r.stderr[-20000:])
+            self.logf.write(redact.scrub_text(r.stdout[-20000:] + r.stderr[-20000:]))
             if r.returncode != 0:
                 self.report["warnings"].append("some repo packages failed to install; first boot retries them")
         left = sorted(set(missing) - set(self.chroot("pacman -Qq", check=False).split()))

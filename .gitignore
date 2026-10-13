@@ -2,3 +2,4 @@ out/
 *.iso
 *.iso.sha256
 build.log
+__pycache__/

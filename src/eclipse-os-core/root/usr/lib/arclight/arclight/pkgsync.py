@@ -9,14 +9,14 @@ import sys
 import time
 from pathlib import Path
 
+from arclight import redact
+
 PENDING = Path("/var/lib/arclight/pending-packages.txt")
 LOG = Path("/var/log/arclight/pkgsync.log")
 
 
 def log(msg):
-    LOG.parent.mkdir(parents=True, exist_ok=True)
-    with open(LOG, "a") as f:
-        f.write(f"[{time.strftime('%F %T')}] {msg}\n")
+    redact.append_private(LOG, f"[{time.strftime('%F %T')}] {redact.scrub_text(msg)}\n")
     print(msg, flush=True)
 
 
@@ -63,7 +63,6 @@ def main():
     PENDING.write_text("\n".join(left) + ("\n" if left else ""))
     rec = {"time": time.time(), "kind": "packages", "message": f"pkgsync: {len(done)} installed, {len(failed)} failed",
            "unit": "arclight-pkgsync.service", "data": {"installed": done, "failed": failed}}
-    with open("/var/log/arclight/events.jsonl", "a") as f:
-        f.write(json.dumps(rec) + "\n")
+    redact.append_private("/var/log/arclight/events.jsonl", json.dumps(rec) + "\n")
     log(rec["message"])
     return 0

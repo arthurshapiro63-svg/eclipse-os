@@ -3,6 +3,8 @@
 import json, os, sys, time
 targets = [l.strip() for l in sys.stdin if l.strip()]
 os.makedirs("/var/log/arclight", exist_ok=True)
-with open("/var/log/arclight/events.jsonl", "a") as f:
+fd = os.open("/var/log/arclight/events.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+os.fchmod(fd, 0o600)
+with os.fdopen(fd, "a") as f:
     f.write(json.dumps({"time": time.time(), "kind": "packages", "message": f"pacman transaction: {len(targets)} packages",
                         "unit": None, "data": {"targets": targets[:500]}}) + "\n")

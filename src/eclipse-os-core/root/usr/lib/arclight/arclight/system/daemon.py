@@ -4,7 +4,7 @@ Serves packages, services, logs, files, machine settings, snapshots and arbitrar
 commands on /run/arclight/arclightd.sock to members of the `arclight` group, with no
 password prompt. Every call is appended to /var/log/arclight/actions.jsonl together
 with the process chain that made it (so the log shows whether Claude, Codex or a
-human ran it).
+human ran it). Secrets are masked before writing and the log is 0600 (arclight.redact).
 """
 import asyncio
 import json
@@ -17,6 +17,7 @@ from pathlib import Path
 from .. import __version__
 from ..rpc import API, serve
 from ..util import SYSTEM_SOCK, LOG_DIR, ETC_DIR, jdump
+from .. import redact
 from . import pkg, svc, files, sysconf, snap
 
 CONFIG = ETC_DIR / "arclightd.json"
@@ -70,12 +71,15 @@ def make_logger(path):
                 return
         chain = proc_chain(peer.get("pid"))
         agent = next((a for c in chain for a in AGENTS if c.startswith(a)), "human")
-        rec = {"time": time.time(), "method": method, "params": _trim(params), "uid": peer.get("uid"),
-               "agent": agent, "chain": chain[:6], "ok": err is None, "seconds": round(seconds, 3)}
+        # secrets never reach the file: secret parameters masked, typed text / file contents / stdin reduced
+        # to their length, secret-looking values in commands and errors masked (arclight.redact)
+        rec = {"time": time.time(), "method": method, "params": _trim(redact.redact_params(method, params or {})),
+               "uid": peer.get("uid"), "agent": agent, "chain": chain[:6], "ok": err is None, "seconds": round(seconds, 3)}
         if err:
             rec["error"] = err.get("message", "")[:500]
-        with _lock, open(path, "a") as f:
-            f.write(jdump(rec) + "\n")
+        rec = redact.redact_record(rec, params)
+        with _lock:
+            redact.append_private(path, jdump(rec) + "\n")
     return on_call
 
 
@@ -124,9 +128,9 @@ def build_api():
     @api.method("events.add")
     def events_add(kind, message, unit=None, data=None, _peer=None):
         """Record a system event (unit failure, package transaction, ...)."""
-        rec = {"time": time.time(), "kind": kind, "message": message, "unit": unit, "data": data}
-        with _lock, open(events, "a") as f:
-            f.write(jdump(rec) + "\n")
+        rec = redact.redact_record({"time": time.time(), "kind": kind, "message": message, "unit": unit, "data": data})
+        with _lock:
+            redact.append_private(events, jdump(rec) + "\n")
         return rec
 
     @api.method("events.tail")

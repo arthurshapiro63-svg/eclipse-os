@@ -66,11 +66,9 @@ def latest_chat() -> Chat | None:
 
 def log_command(command: str, exit_code: int | None, output: str, kind: str = "shell") -> None:
     """Append one command + output to ~/.local/share/eclipse-ai/log/commands.log."""
-    config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    from .. import redact   # secret-looking values masked; the log is 0600
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    with open(config.LOG_DIR / "commands.log", "a") as f:
-        f.write(f"[{stamp}] ({kind}) $ {command}\n")
-        f.write(f"exit: {exit_code}\n")
-        if output:
-            f.write(output.rstrip("\n") + "\n")
-        f.write("-" * 60 + "\n")
+    text = f"[{stamp}] ({kind}) $ {command}\nexit: {exit_code}\n"
+    if output:
+        text += output.rstrip("\n") + "\n"
+    redact.append_private(config.LOG_DIR / "commands.log", redact.scrub_text(text) + "-" * 60 + "\n")
