@@ -254,8 +254,8 @@ with zstd compression, and the EFI partition at `/mnt/efi`.
 
 **Goal:** a minimal system in `/mnt` with packages **you** picked.
 
-The Eclipse OS packages (named `arclight-*`) come from the USB stick. Normal Arch packages come from
-the internet. Both are set up in `/etc/arclight-rite/pacman.conf`.
+The Eclipse OS packages (named `eclipse-os-*`) come from the USB stick (`/opt/eclipse-repo`). Normal Arch
+packages come from the internet. Both are set up in `/etc/arclight-rite/pacman.conf`.
 
 1. Pick your parts:
 

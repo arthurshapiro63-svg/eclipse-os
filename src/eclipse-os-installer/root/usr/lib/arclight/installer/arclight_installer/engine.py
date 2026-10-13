@@ -47,6 +47,18 @@ class InstallError(RuntimeError):
     pass
 
 
+CONSOLE_FONT = "ter-v20b"   # from terminus-font (a dependency of eclipse-os-core)
+
+
+def vconsole_conf(root, keymap=None):
+    """/etc/vconsole.conf for the new system. FONT= only names a font that is really installed there:
+    a missing font makes systemd-vconsole-setup fail on every boot."""
+    text = f"KEYMAP={keymap or 'us'}\n"
+    if (Path(root) / f"usr/share/kbd/consolefonts/{CONSOLE_FONT}.psf.gz").exists():
+        text += f"FONT={CONSOLE_FONT}\n"
+    return text
+
+
 class Engine:
     def __init__(self, cfg, ui=None):
         self.c = cfg
@@ -466,6 +478,7 @@ class Engine:
                 p.unlink()
         for k in (T / "etc/ssh").glob("ssh_host_*"):
             k.unlink()
+        shutil.rmtree(T / "opt/eclipse-repo", ignore_errors=True)   # the USB's package repo (for the Rite)
         self.chroot("systemd-machine-id-setup")
         self.chroot("pacman-key --init && pacman-key --populate archlinux", timeout=600)
         # live mirrorlist may be all-commented; keep the uncommented https mirrors
@@ -502,7 +515,7 @@ class Engine:
         gen.write_text(text)
         self.chroot("locale-gen", timeout=600)
         (T / "etc/locale.conf").write_text(f"LANG={loc}\n")
-        (T / "etc/vconsole.conf").write_text(f"KEYMAP={c.get('keymap') or 'us'}\nFONT=ter-v20b\n")
+        (T / "etc/vconsole.conf").write_text(vconsole_conf(T, c.get("keymap")))
 
     def configure_boot_files(self):
         c = self.c
