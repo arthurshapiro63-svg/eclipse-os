@@ -1,0 +1,53 @@
+# --- base system (live + what the installer copies to disk)
+base
+linux
+linux-firmware
+sof-firmware
+amd-ucode
+intel-ucode
+mkinitcpio
+mkinitcpio-archiso
+syslinux
+edk2-shell
+memtest86+
+memtest86+-efi
+pv
+sudo
+nano
+less
+man-db
+bash-completion
+git
+usbutils
+pciutils
+ntfs-3g
+exfatprogs
+xfsprogs
+# --- network, bluetooth, power
+networkmanager
+wpa_supplicant
+iwd
+wireless-regdb
+bluez
+bluez-utils
+power-profiles-daemon
+openssh
+# --- graphics (AMD, Intel, NVIDIA open, VMs)
+mesa
+vulkan-radeon
+vulkan-intel
+vulkan-nouveau
+intel-media-driver
+qemu-guest-agent
+spice-vdagent
+# --- audio
+pipewire
+pipewire-jack
+xdg-user-dirs
+xdg-utils
+# --- Eclipse OS
+arclight-core
+arclight-desktop
+arclight-installer
+yay-bin
+firefox

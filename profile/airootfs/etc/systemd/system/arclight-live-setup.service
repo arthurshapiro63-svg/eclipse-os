@@ -1,0 +1,13 @@
+[Unit]
+Description=Eclipse OS live user
+After=systemd-sysusers.service local-fs.target
+Before=getty@tty1.service systemd-user-sessions.service
+ConditionPathExists=/run/archiso
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/arclight-live-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

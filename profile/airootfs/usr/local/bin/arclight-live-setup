@@ -1,0 +1,16 @@
+#!/bin/bash
+# Eclipse OS live USB: make the passwordless "eclipse" user with the default Eclipse home.
+# Runs once per boot (the live system lives in RAM). The installer removes this file.
+set -u
+U=eclipse
+id "$U" >/dev/null 2>&1 && exit 0
+systemd-sysusers
+groups=()
+for g in wheel arclight video audio input storage uucp network; do getent group "$g" >/dev/null && groups+=("$g"); done
+useradd -M -u 1000 -U -G "$(IFS=,; echo "${groups[*]}")" -s /bin/bash -c "Eclipse" "$U"
+passwd -d "$U" >/dev/null
+skel=/usr/share/arclight/skel; [ -d "$skel" ] || skel=/etc/skel
+cp -aT "$skel" "/home/$U"
+chown -R "$U:$U" "/home/$U"
+runuser -u "$U" -- arclight-firstrun --home "/home/$U" --offline --force || true
+exit 0
