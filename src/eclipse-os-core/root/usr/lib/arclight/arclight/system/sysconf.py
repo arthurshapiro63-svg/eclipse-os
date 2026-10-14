@@ -5,6 +5,7 @@ import pwd
 import grp
 import re
 import socket
+import subprocess
 import time
 from pathlib import Path
 
@@ -262,6 +263,58 @@ def users():
     return out
 
 
+# ---------------------------------------------------------------- passwordless admin (opt-in)
+
+NOPASSWD_SUDOERS = "etc/sudoers.d/90-eclipse-nopasswd"
+NOPASSWD_POLKIT = "etc/polkit-1/rules.d/49-eclipse-nopasswd.rules"
+NOPASSWD_SUDOERS_TEXT = ("# Eclipse OS: passwordless admin, turned on by the owner (Settings -> System, system.sudo_nopasswd).\n"
+                         "# Every program running as a member of the arclight group can become root without a password.\n"
+                         "%arclight ALL=(ALL:ALL) NOPASSWD: ALL\n")
+NOPASSWD_POLKIT_TEXT = """// Eclipse OS: passwordless admin, turned on by the owner (Settings -> System, system.sudo_nopasswd).
+// Members of the arclight group are never asked for a password by polkit (this includes arclightd's
+// dev.arclight.admin, so the AI's root actions no longer need the password either).
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("arclight")) {
+        return polkit.Result.YES;
+    }
+});
+"""
+
+
+def nopasswd_enabled(root="/"):
+    return (Path(root) / NOPASSWD_SUDOERS).exists()
+
+
+def set_nopasswd(enable, root="/"):
+    """Write or remove the opt-in pair (sudoers + polkit). The sudoers file is checked with visudo first."""
+    r = Path(root)
+    s, p = r / NOPASSWD_SUDOERS, r / NOPASSWD_POLKIT
+    if enable:
+        tmp = s.with_name(".90-eclipse-nopasswd.new")
+        tmp.write_text(NOPASSWD_SUDOERS_TEXT)
+        os.chmod(tmp, 0o440)
+        chk = subprocess.run(["visudo", "-cf", str(tmp)], capture_output=True, text=True)
+        if chk.returncode != 0:
+            tmp.unlink(missing_ok=True)
+            raise RPCError(f"visudo refused the sudoers file: {chk.stdout.strip() or chk.stderr.strip()}")
+        os.replace(tmp, s)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(NOPASSWD_POLKIT_TEXT)
+        os.chmod(p, 0o644)
+    else:
+        s.unlink(missing_ok=True)
+        p.unlink(missing_ok=True)
+    return {"enabled": nopasswd_enabled(root)}
+
+
+def nopasswd(enable=None):
+    """Passwordless admin for the arclight group: get, or turn on / off (enable=true/false). Off is the default
+    and safer: with it on, every program running as you (including AI agents) can become root silently."""
+    if enable is None:
+        return {"enabled": nopasswd_enabled()}
+    return set_nopasswd(bool(enable))
+
+
 def user_add(name, groups=None, shell="/bin/bash", password=None, admin=False):
     """Create a user (admin=true adds wheel + arclight)."""
     g = list(groups or [])
@@ -328,6 +381,7 @@ def register(api):
     api.method("sys.cmdline")(cmdline)
     api.method("sys.sysctl")(sysctl)
     api.method("sys.users")(users)
+    api.method("sys.nopasswd")(nopasswd)
     api.method("sys.user_add")(user_add)
     api.method("sys.user_mod")(user_mod)
     api.method("sys.user_del")(user_del)

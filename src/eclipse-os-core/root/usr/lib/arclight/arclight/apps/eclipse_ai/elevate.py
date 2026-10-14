@@ -1,9 +1,9 @@
-"""Root for approved commands, the Eclipse way: through arclightd, with NO password at all.
+"""Root for approved commands, the Eclipse way: through arclightd.
 
-Based on Arch AI's elevate.py by Arthur (one polkit popup per batch). On Eclipse OS the root service
-arclightd runs root work for members of the `arclight` group, so there is no popup and no password,
-but the rest stays exactly as in Arch AI:
-- Arthur still sees the exact command(s) in the window and clicks yes first (tools.root_command);
+Based on Arch AI's elevate.py by Arthur Shapiro. The root service arclightd runs root work for members of the
+`arclight` group; every such change asks for the administrator password through polkit (one prompt per batch)
+unless the owner turned on passwordless admin. On top of that:
+- the person at the computer sees the exact command(s) in the window and clicks yes first (tools.root_command);
 - never in a timed run (nobody is watching): those commands wait in the root review script;
 - only commands where every part is plain `sudo cmd` (no flags, nothing mixed, no AUR helpers);
 - `safety.hard_block()` still applies;
@@ -26,7 +26,20 @@ MARK = "@@eclipse-ai"
 AUR_RE = re.compile(r"(^|[\s;&|(/])(yay|paru|makepkg|pikaur|trizen|aurman)(\s|$)")
 
 
+PASSWORD_WAIT = 600   # s: arclightd waits this long for the system password prompt (system/authz.py)
+
+
 # ---------- is root possible ----------
+def password_note() -> str:
+    """What happens after "yes", in the card: the password prompt, unless passwordless admin is on."""
+    try:
+        if sysapi.call("sys.nopasswd").get("enabled"):
+            return "passwordless admin is on, so no password is asked"
+    except Exception:
+        pass
+    return "your password is asked next (system prompt)"
+
+
 def available() -> bool:
     """arclightd answers (its socket exists)."""
     return sysapi.available("system")
@@ -167,7 +180,7 @@ class _Batch:
         many = len(self.commands) > 1
         if parts[:1] == ["begin"]:
             self.began = True
-            self.on_output("running as root (Eclipse root service, no password)\n")
+            self.on_output("running as root (Eclipse root service)\n")
         elif parts[:1] == ["start"] and len(parts) > 1:
             self.cur = int(parts[1]) - 1
             head = f"# {self.commands[self.cur]}\n"
@@ -278,20 +291,23 @@ def run_as_root(commands: list[str], ctx, *, why: str = "root", queue_on_fail: b
     def go():
         try:
             box["r"] = sysapi.call("exec", cmd=["/usr/bin/bash", "-c", script], cwd=str(config.HOME),
-                                   timeout=limit + 20, _wait=limit + 60)
+                                   timeout=limit + 20, _wait=limit + 60 + PASSWORD_WAIT)
         except Exception as e:   # delivered below
             box["error"] = e
 
     worker = threading.Thread(target=go, daemon=True)
     worker.start()
-    deadline = time.time() + limit + 30
+    # the time limit starts when the batch starts: before that, the system's password prompt may be waiting
+    asked_until, deadline = time.time() + PASSWORD_WAIT + 30, None
     status = "done"
     while worker.is_alive():
         worker.join(0.2)
         follow.poll()
+        if deadline is None and batch.began:
+            deadline = time.time() + limit + 30
         if ctx.cancelled:
             status = "cancelled"; break
-        if time.time() > deadline:
+        if time.time() > (deadline or asked_until):
             status = "timeout"; break
     follow.poll(final=status == "done")
 
@@ -299,6 +315,10 @@ def run_as_root(commands: list[str], ctx, *, why: str = "root", queue_on_fail: b
         threading.Thread(target=_drain, args=(worker, follow, batch, logged, out_file), daemon=True).start()
         for c, rc in zip([c for c, _ in good], batch.codes):
             codes_all[c] = rc
+        if not batch.began:
+            what = "Stop was pressed" if status == "cancelled" else "nobody answered the password prompt in time"
+            return result(f"NOT RUN: {what}. If the system's password prompt is still open, cancel it there; "
+                          "typing the password would still run the command.", ok=False)
         what = "Stop was pressed" if status == "cancelled" else f"the {limit + 30} s limit was reached"
         return result(
             f"{what}, but the commands already run as root and Eclipse AI cannot stop them. They keep running "
@@ -313,6 +333,12 @@ def run_as_root(commands: list[str], ctx, *, why: str = "root", queue_on_fail: b
         e = box["error"]
         msg = getattr(e, "message", None) or str(e)
         store.log_command(logged, None, batch.log + f"\n[root service error: {msg}]", "root")
+        if not batch.began and msg.startswith(("not allowed", "needs the administrator password")):
+            # the person at the computer did not give the password: that is a "no", not something to queue
+            store.log_command(logged, None, f"[not run: {msg}]", "root")
+            ctx.note(f"✖ not run: {msg[:120]}")
+            return result(f"NOT RUN: {msg}. The user did not approve it with their password. Do not retry; "
+                          "ask the user if they still want it.", ok=False)
         if not batch.began:
             return fall_back(f"the Eclipse root service could not run it ({msg[:200]})")
         return result(f"the root service stopped answering ({msg[:200]}). Finished so far:\n{_report(batch)}", ok=False)
@@ -380,7 +406,7 @@ def run_queue(ctx, confirm: bool = True) -> "tools.ToolResult":
         return tools.ToolResult(msg + (f" Still waiting for you:\n{kept}" if rest else ""), ok=not rest, queued=bool(rest))
     n = len(cmds)
     if confirm:
-        reasons = ["from the root review script", "runs as root, no password"]
+        reasons = ["from the root review script", "runs as root", password_note()]
         if rest:
             reasons.append(f"{len(rest)} more stay queued (mixed commands)")
         try:

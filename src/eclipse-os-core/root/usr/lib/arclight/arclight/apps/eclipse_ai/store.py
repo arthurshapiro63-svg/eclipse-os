@@ -66,7 +66,7 @@ def latest_chat() -> Chat | None:
 
 def log_command(command: str, exit_code: int | None, output: str, kind: str = "shell") -> None:
     """Append one command + output to ~/.local/share/eclipse-ai/log/commands.log."""
-    from .. import redact   # secret-looking values masked; the log is 0600
+    from arclight import redact   # secret-looking values masked; the log is 0600
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     text = f"[{stamp}] ({kind}) $ {command}\nexit: {exit_code}\n"
     if output:

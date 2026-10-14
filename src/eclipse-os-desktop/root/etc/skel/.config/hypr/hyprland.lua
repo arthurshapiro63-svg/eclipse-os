@@ -33,7 +33,7 @@ hl.monitor({
 -- Hyprland treats the two cables as two side-by-side screens (3840 px wide) and the
 -- cursor drifts onto the invisible HDMI "screen". HDMI now mirrors DisplayPort, so
 -- the desktop is exactly one 1920x1080 screen whichever input the monitor shows.
--- arclight: machine-specific (Arthur's Alienware on DP-1 + HDMI-A-1), off on this machine:
+-- arclight: machine-specific (the author's dual-monitor DP-1 + HDMI-A-1 setup), off on this machine:
 -- hl.monitor({
 --     output   = "HDMI-A-1",
 --     mode     = "preferred",
@@ -738,11 +738,11 @@ hl.window_rule({
 
 -- Workspaces 1-4 live on the main monitor (bar shows 01 02 03 04). 5-10 used to live
 -- on a second screen; HDMI-A-1 is now a mirror of the same monitor, so they live on DP-1.
--- arclight: machine-specific (Arthur's Alienware on DP-1 + HDMI-A-1), off on this machine:
+-- arclight: machine-specific (the author's dual-monitor DP-1 + HDMI-A-1 setup), off on this machine:
 -- for i = 1, 4 do
 --     hl.workspace_rule({ workspace = tostring(i), monitor = "DP-1", persistent = true, default = (i == 1) })
 -- end
--- arclight: machine-specific (Arthur's Alienware on DP-1 + HDMI-A-1), off on this machine:
+-- arclight: machine-specific (the author's dual-monitor DP-1 + HDMI-A-1 setup), off on this machine:
 -- for i = 5, 10 do
 --     hl.workspace_rule({ workspace = tostring(i), monitor = "DP-1" })
 -- end

@@ -38,7 +38,7 @@ STAGES = [
     (8, "Boot entry", "a firmware boot entry for your signed image, first in the boot order"),
     (9, "Users and power", "your account, root, sudo, written and validated by hand"),
     (10, "The AI layer", "arclight group, daemon, uinput, polkit, MCP for Claude and Codex"),
-    (11, "Desktop", "Hyprland, Arthur's config, the Eclipse theme, login"),
+    (11, "Desktop", "Hyprland, the Eclipse config and theme, login"),
     (12, "Migration", "bring your files over with a plan you wrote (optional)"),
     (13, "First boot", "reboot into it; `rite final` proves it works"),
 ]
@@ -306,8 +306,8 @@ def c10(st):
     out.append((en.strip() == "enabled", "arclightd enabled", "arch-chroot /mnt systemctl enable arclightd"))
     out.append(((MNT / "usr/lib/udev/rules.d/70-arclight-uinput.rules").exists() and (MNT / "usr/lib/modules-load.d/arclight.conf").exists(),
                 "uinput access for the AI's virtual keyboard and mouse", "reinstall eclipse-os-core"))
-    out.append(((MNT / "usr/share/polkit-1/rules.d/49-arclight.rules").exists() or (MNT / "etc/polkit-1/rules.d/49-arclight.rules").exists(),
-                "polkit rule: no password popups for the arclight group", "reinstall eclipse-os-core (or write the rule yourself)"))
+    out.append(((MNT / "usr/share/polkit-1/actions/dev.arclight.admin.policy").exists(),
+                "polkit action: the root daemon asks for your password", "reinstall eclipse-os-core"))
     home = MNT / "home" / u if u else None
     cj = {}
     try:
@@ -330,7 +330,7 @@ def c11(st):
     out.append(("eclipse-os-desktop" in pk and "hyprland" in pk, "eclipse-os-desktop + hyprland installed", "arch-chroot /mnt pacman -S eclipse-os-desktop"))
     hl = home / ".config/hypr/hyprland.lua"
     out.append((hl.exists() and "arclight:begin" in hl.read_text() if hl.exists() else False,
-                "Arthur's Hyprland config with the arclight block", "copy /usr/share/arclight/skel into the home (useradd -k does it)"))
+                "the Hyprland config with the arclight block", "copy /usr/share/arclight/skel into the home (useradd -k does it)"))
     cur = home / ".config/theme/current"
     out.append((cur.exists() and cur.read_text().strip() != "", "a theme applied (~/.config/theme/current)",
                 f"arch-chroot /mnt runuser -u {u} -- theme-apply eclipse"))
@@ -376,7 +376,7 @@ def final():
     rc, sb = sh("sbctl status 2>&1")
     print(f"  {D}Secure Boot: {'enabled with your keys' if 'Enabled' in sb else 'keys made and kernel signed; enrol them in the firmware to enforce'}{N}")
     rc, s = sh(["arc", "--json", "info"])
-    res.append((rc == 0, "arc talks to arclightd (root API, no password)"))
+    res.append((rc == 0, "arc talks to arclightd (root API)"))
     rc, s2 = sh("arc --json settings get appearance.theme")
     res.append((rc == 0, "arc talks to arclight-session (the desktop API)"))
     rc, w = sh("arc --json win list")

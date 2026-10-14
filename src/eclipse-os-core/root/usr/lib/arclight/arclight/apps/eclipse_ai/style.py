@@ -106,6 +106,8 @@ expander title { color: $text_dim; }
 }
 .dim { color: $text_dim; font-size: 0.92em; }
 .statusline { color: $muted; font-size: 0.88em; }
+.cloud-note { color: $gold; font-size: 0.9em; padding: 6px 10px; border-radius: 10px;
+  background-color: rgba($gold_rgb, 0.10); border: 1px solid rgba($gold_rgb, 0.45); }
 
 /* the timed run: a glass strip with the sun's progress */
 .ea-run {

@@ -1,6 +1,6 @@
 # Eclipse OS AI interface. The files under root/ are installed as-is.
 pkgname=eclipse-os-core
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Eclipse OS AI interface: system + session daemons, settings registry, arc CLI, MCP server"
 arch=('any')

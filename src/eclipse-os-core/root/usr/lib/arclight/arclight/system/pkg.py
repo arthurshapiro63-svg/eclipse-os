@@ -11,6 +11,7 @@ import urllib.request
 from pathlib import Path
 
 from ..rpc import RPCError
+from . import authz
 from ..util import run, run_full, clip_text, which
 
 ENV = {"LANG": "C", "LC_ALL": "C"}
@@ -285,7 +286,11 @@ def install(names, aur=True, reinstall=False, _peer=None):
         user = _user_of(_peer)
         cmd = ["runuser", "-u", user, "--", "yay", "-S", "--noconfirm", "--needed", "--answerdiff", "None",
                "--answerclean", "None", "--removemake", "--sudo", "/usr/bin/arclight-asroot"] + other
-        r = _stream(cmd, env={**ENV, "HOME": pwd.getpwnam(user).pw_dir}, timeout=7200)
+        tok = authz.job_token()      # yay's pacman steps (arclight-asroot) belong to this authorized job
+        try:
+            r = _stream(cmd, env={**ENV, "HOME": pwd.getpwnam(user).pw_dir, "ARCLIGHT_JOB_TOKEN": tok}, timeout=7200)
+        finally:
+            authz.drop_token(tok)
         results["aur"] = {"packages": other, "built_as": user, "code": r["code"],
                           "output": clip_text(r["stdout"] + r["stderr"], 6000)}
         if r["code"] != 0:
@@ -332,9 +337,13 @@ def upgrade(aur=False, _peer=None):
             check_error = None
         except Exception as e:
             pending, check_error = [], str(e)
-        a = _stream(["runuser", "-u", user, "--", "yay", "-Sua", "--noconfirm", "--answerdiff", "None",
-                      "--answerclean", "None", "--sudo", "/usr/bin/arclight-asroot"],
-                     env={**ENV, "HOME": pwd.getpwnam(user).pw_dir}, timeout=7200)
+        tok = authz.job_token()
+        try:
+            a = _stream(["runuser", "-u", user, "--", "yay", "-Sua", "--noconfirm", "--answerdiff", "None",
+                          "--answerclean", "None", "--sudo", "/usr/bin/arclight-asroot"],
+                         env={**ENV, "HOME": pwd.getpwnam(user).pw_dir, "ARCLIGHT_JOB_TOKEN": tok}, timeout=7200)
+        finally:
+            authz.drop_token(tok)
         after = _versions(foreign=True)
         done = sorted(n for n in pending if after.get(n) != mid.get(n))      # version changed: updated
         failed = sorted(n for n in pending if after.get(n) == mid.get(n))    # still the old version

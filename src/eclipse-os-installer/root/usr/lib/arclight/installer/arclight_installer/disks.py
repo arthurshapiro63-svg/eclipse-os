@@ -87,11 +87,11 @@ def _fstab(text):
 
 
 def resolve_old_path(path, root_subdir, fstab_text, ids, fstype):
-    """Where `path` (as the OLD system sees it, e.g. /home/arthur) lives, relative to the top level of the
+    """Where `path` (as the OLD system sees it, e.g. /home/alex) lives, relative to the top level of the
     old root partition as mounted by old_mount_opts(). Follows the old fstab:
 
-      * on the root filesystem itself        -> <root_subdir>/home/arthur   (@/home/arthur on btrfs)
-      * a btrfs subvolume of the same disk   -> <subvol>/arthur             (@home/arthur)
+      * on the root filesystem itself        -> <root_subdir>/home/alex   (@/home/alex on btrfs)
+      * a btrfs subvolume of the same disk   -> <subvol>/alex               (@home/alex)
       * anything else (another partition, bind mounts, subvolid= only, network) -> LayoutError."""
     path = "/" + path.strip("/")
     best = None

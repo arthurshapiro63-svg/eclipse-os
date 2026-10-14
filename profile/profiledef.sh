@@ -5,7 +5,7 @@ iso_name="eclipse-os"
 iso_label="ECLIPSE_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
 iso_publisher="Eclipse OS"
 iso_application="Eclipse OS Live / Install"
-iso_version="0.1.1"
+iso_version="0.1.2"
 install_dir="eclipse"
 bootmodes=('bios.syslinux'
            'uefi.systemd-boot')

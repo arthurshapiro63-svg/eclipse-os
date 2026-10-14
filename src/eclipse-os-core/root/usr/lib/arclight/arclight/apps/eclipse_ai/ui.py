@@ -26,7 +26,8 @@ from .ollama_client import Ollama, OllamaError  # noqa: E402
 
 ENGINE_PACKAGES = ["ollama", "ollama-vulkan"]
 MODEL_HINTS = {"qwen3.5:9b": "Quick. Good for everyday things.", "gemma4:12b": "Smarter, a bit slower.",
-               "gpt-oss:20b": "The biggest model on this PC.", "ultra": "The strongest. Goes online."}
+               "gpt-oss:20b": "The biggest model on this PC.",
+               "ultra": "OpenAI, in the cloud: your messages leave this computer."}
 
 
 def logo_path(size: int = 128) -> str | None:
@@ -183,10 +184,22 @@ class ToolCard(Gtk.Box):
             self.expander.set_expanded(len(result.text) < 400)
 
 
+def ai_input_recent(window=5.0) -> bool:
+    """True when Eclipse's desktop helper injected a click / key / typing for an AI in the last `window` s.
+    The session daemon marks this BEFORE it injects anything, so a "yes" produced that way is caught."""
+    try:
+        from arclight import client
+        s = client.call("session.input_activity").get("seconds_since")
+        return s is not None and s < window
+    except Exception:
+        return False   # no desktop helper running: nothing can be injecting through it
+
+
 class ApprovalCard(Gtk.Box):
-    """Inline permission request (yes / no), always with the exact command(s). There is never a password
-    box in the app and, on Eclipse OS, no password popup either: a root command runs through arclightd
-    right after "yes"."""
+    """Inline permission request (yes / no), always with the exact command(s). The app never shows a password
+    box. A root command then goes to arclightd, which asks for the administrator password through the system's
+    own polkit prompt (unless passwordless admin was turned on in Settings). "Yes" is never pre-selected, and a
+    "yes" that arrives right after an AI drove the mouse or keyboard is refused."""
 
     def __init__(self, approval: tools.Approval, on_answer):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -210,10 +223,20 @@ class ApprovalCard(Gtk.Box):
         self.append(why)
         btns = Gtk.Box(spacing=8, halign=Gtk.Align.END)
         no = Gtk.Button(label=approval.no); no.connect("clicked", lambda *_: self._answer(False))
-        yes = Gtk.Button(label=approval.yes); yes.add_css_class("suggested-action"); yes.connect("clicked", lambda *_: self._answer(True))
+        yes = Gtk.Button(label=approval.yes); yes.add_css_class("suggested-action"); yes.connect("clicked", lambda *_: self._yes())
         btns.append(no); btns.append(yes); self.append(btns)
+        self.guard = Gtk.Label(xalign=0, wrap=True, visible=False)
+        self.guard.add_css_class("dim"); self.append(self.guard)
         self.buttons = (no, yes)
-        GLib.idle_add(lambda: yes.grab_focus() and False)   # once (a True return would repeat it forever)
+        # no default focus on "yes": a stray (or injected) Enter must not approve anything
+
+    def _yes(self):
+        if ai_input_recent():
+            self.guard.set_text("An AI was just using the mouse or keyboard, so this click does not count. "
+                                "If you want this, click Yes yourself in a few seconds.")
+            self.guard.set_visible(True)
+            return
+        self._answer(True)
 
     def _answer(self, ok: bool):
         for b in self.buttons:
@@ -349,6 +372,11 @@ class Window(Gtk.ApplicationWindow):
         self.status = Gtk.Label(label="", xalign=0, margin_start=20, margin_bottom=3, ellipsize=Pango.EllipsizeMode.END)
         self.status.add_css_class("statusline")
         root.append(self.status)
+        # while the cloud model is chosen: what leaves the computer, and that its commands skip the cards
+        self.cloud_note = Gtk.Label(label=ultra.CLOUD_NOTE, xalign=0, wrap=True, margin_start=20, margin_end=20,
+                                    margin_bottom=6, visible=False)
+        self.cloud_note.add_css_class("cloud-note")
+        root.append(self.cloud_note)
         bottom = Gtk.Box(spacing=8, margin_start=14, margin_end=14, margin_bottom=14)
         self.entry = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, hexpand=True, accepts_tab=False)
         self.entry.add_css_class("entry")
@@ -447,7 +475,7 @@ class Window(Gtk.ApplicationWindow):
             self.setup_title.set_text("The AI engine is missing")
             self.setup_text.set_text("Eclipse AI needs its engine (Ollama) to run models on this PC.")
             self.setup_btn.set_label("Install it (about 100 MB)")
-            self.setup_small.set_text("Installed by Eclipse's package service. A restore point is made first. No password.")
+            self.setup_small.set_text("Installed by Eclipse's package service. A restore point is made first. It asks for your password.")
         else:
             self.setup_title.set_text("The AI engine did not start")
             self.setup_text.set_text("Something stopped the model server from starting.")
@@ -635,7 +663,8 @@ class Window(Gtk.ApplicationWindow):
             row.model_id = m
             v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             n = Gtk.Label(label=config.display_name(self.cfg, m, i), xalign=0); n.add_css_class("ea-mname")
-            hint = MODEL_HINTS.get(m, "On this PC.")
+            hint = MODEL_HINTS.get(m, "")
+            hint = hint if m == ultra.MODEL_ID else f"{hint} On this PC ({m}).".strip()
             h = Gtk.Label(label=hint, xalign=0); h.add_css_class("ea-mhint")
             v.append(n); v.append(h)
             row.set_child(v)
@@ -647,10 +676,15 @@ class Window(Gtk.ApplicationWindow):
 
     def _show_model(self):
         self.model_label.set_text(self.alias(self.cfg["model"]))
-        if self.cfg["model"] == ultra.MODEL_ID:
+        cloud = self.cfg["model"] == ultra.MODEL_ID
+        if cloud:
             self.model_dot.add_css_class("online")
         else:
             self.model_dot.remove_css_class("online")
+        if getattr(self, "cloud_note", None) is not None:
+            self.cloud_note.set_visible(cloud)
+        if getattr(self, "hello_sub", None) is not None:
+            self.hello_sub.set_text(self._hello_text())
 
     def _model_row(self, _lb, row):
         self.model_pop.popdown()
@@ -659,6 +693,8 @@ class Window(Gtk.ApplicationWindow):
             self.cfg["model"] = m; config.save(self.cfg)
             self._fill_models(list(self._models))
             self.status.set_text(f"model: {self.alias(m)}")
+            if m == ultra.MODEL_ID and self.stack.get_visible_child_name() == "setup":
+                self.stack.set_visible_child_name("chat")   # the cloud model needs no local engine or model
 
     # ----- menu -----
     def _menu_button(self):
@@ -729,12 +765,18 @@ class Window(Gtk.ApplicationWindow):
         txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, valign=Gtk.Align.CENTER)
         h = Gtk.Label(label="Hi, I'm Eclipse AI.", xalign=0); h.add_css_class("ea-hello")
         line = Gtk.Box(width_request=220, halign=Gtk.Align.START); line.add_css_class("corona-line")
-        s = Gtk.Label(label="I run on this PC. Ask me to fix, change, install or explain anything.", xalign=0, wrap=True)
+        s = Gtk.Label(label=self._hello_text(), xalign=0, wrap=True)
         s.add_css_class("ea-hello-sub")
+        self.hello_sub = s
         txt.append(h); txt.append(line); txt.append(s)
         top.append(txt)
         box.append(top)
         return box
+
+    def _hello_text(self) -> str:
+        if self.cfg.get("model") == ultra.MODEL_ID:
+            return "You picked Codex (cloud): your messages go to OpenAI. Ask me to fix, change, install or explain anything."
+        return "I run on this PC. Ask me to fix, change, install or explain anything."
 
     QUICK = [("Update my system", "Update everything on my system."),
              ("How is my PC doing?", "Give me a short health check: CPU, memory, disk, temperatures, failed services."),
@@ -759,7 +801,7 @@ class Window(Gtk.ApplicationWindow):
             self.list.append(self._hello())
             self.list.append(Bubble("note", "Tip: pick “Work 30 min” and I keep going on my own until the job is done "
                                             "or the time is up. Before I change the system, you see the exact command "
-                                            "and click yes. No password.\n"
+                                            "and click yes; then the system asks for your password.\n"
                                             "Ctrl+N new chat  ·  Ctrl + / − text size  ·  Esc stop"))
             self.list.append(self._quick_actions())
         for ev in chat.events:
@@ -790,6 +832,11 @@ class Window(Gtk.ApplicationWindow):
     def _boot_server(self):
         if not self.client.is_up():
             if not shutil.which("ollama"):
+                if self.cfg["model"] == ultra.MODEL_ID and ultra.available():
+                    # the cloud model needs no local engine: straight to the chat (with its cloud notice)
+                    GLib.idle_add(self._fill_models, [])
+                    GLib.idle_add(lambda: self.status.set_text(f"ready · {self.alias(self.cfg['model'])}") and False)
+                    return
                 GLib.idle_add(self.show_setup, "engine")
                 return
             GLib.idle_add(self.status.set_text, "starting the AI engine…")
@@ -820,7 +867,7 @@ class Window(Gtk.ApplicationWindow):
         if self.stack.get_visible_child_name() == "setup":
             self.stack.set_visible_child_name("chat")
         self.status.set_text(f"ready · {self.alias(self.cfg['model'])}")
-        # warm the model so the first answer is quick (Totality needs no warm-up)
+        # warm the model so the first answer is quick (the cloud model needs no warm-up)
         if self.cfg["model"] != ultra.MODEL_ID:
             warm = json.dumps({"model": self.cfg["model"], "keep_alive": self.cfg.get("keep_alive", "15m"),
                                "options": {"num_ctx": int(self.cfg.get("num_ctx", 8192))}})

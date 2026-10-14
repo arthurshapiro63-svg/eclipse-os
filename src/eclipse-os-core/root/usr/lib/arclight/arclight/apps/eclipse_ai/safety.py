@@ -4,7 +4,7 @@ read-only `arc` commands run without asking, and the never-run list also covers 
 
 Rule of thumb: only a known read-only command runs automatically. Everything
 else asks. Anything with sudo (and /etc, /boot writes) needs root: in chat it
-asks, then runs as root through arclightd with no password (elevate.py);
+asks, then runs as root through arclightd after the system password prompt (elevate.py);
 otherwise it goes to the root review script.
 
 In a timed autonomous run there is nobody to ask, so the run auto-approves
@@ -104,7 +104,7 @@ def _args_ok(argv: list[str]) -> bool:
 
 SUDO_RE = re.compile(r"(^|[\s;&|(`])(sudo|doas|pkexec|su|sudo-rs|run0|machinectl|arclight-asroot|arc\s+root)(\s|$)")
 
-# Never auto-approved, even in a timed run. Not a security boundary (the model runs as Arthur
+# Never auto-approved, even in a timed run. Not a security boundary (the model runs as the user
 # anyway); it catches the classic self-destruct commands.
 HARD_BLOCK = [
     (re.compile(r"(^|[\s;&|(])rm\s+(-\w*[rR]\w*\s+)*(-\w+\s+)*(/|~|\$HOME|/home|/home/\w+|~/\.config|~/\.local|~/Projects|\.\.|\*)/?(\s|$|;|&)"), "deletes a whole top-level folder"),

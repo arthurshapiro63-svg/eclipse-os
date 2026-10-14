@@ -123,7 +123,7 @@ def quick():
             ou = next(u for u in old_users if u["name"] == k)
         if ui.confirm(f"Bring over {ou['home']} (settings, projects, files)? Nothing is moved: it is copied or shared."):
             migrate = {"enabled": True, "old_user": ou, "from_home": ou["home"]}
-    uname = ui.ask("User name", migrate.get("old_user", {}).get("name") or "arthur", validate=v_user)
+    uname = ui.ask("User name", migrate.get("old_user", {}).get("name") or "", validate=v_user)
     user = {"name": uname, "autologin": True, "full_name": (migrate.get("old_user", {}).get("gecos") or uname.title()).split(",")[0]}
     if migrate["enabled"] and ui.confirm("Keep your existing password?"):
         h = old_shadow_hash(t["partition"], migrate["old_user"]["name"], old.get("root_subdir", ""))

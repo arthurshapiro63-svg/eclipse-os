@@ -1,11 +1,11 @@
-"""Eclipse OS (codename Arclight): the per-user desktop layer, applied on top of Arthur's own config.
+"""Eclipse OS (codename Arclight): the per-user desktop layer, applied on top of the user's own config.
 
 Used in three places, always the same code:
-  * building the distro's default home (/etc/skel) from Arthur's synced config
-  * migrating Arthur's real home into a new install (on the STAGED copy, never the original)
+  * building the distro's default home (/etc/skel) from the author's synced config
+  * migrating the user's real home into a new install (on the STAGED copy, never the original)
   * `arclight-firstrun` at first login (one-time steps that need the live session)
 
-Every step is idempotent. Edits to files Arthur owns are confined to marked blocks
+Every step is idempotent. Edits to files the user owns are confined to marked blocks
 (`-- arclight:begin` ... `-- arclight:end`), so his own later changes are never overwritten.
 """
 import json
@@ -88,7 +88,7 @@ def patch_hyprland(home, fresh=False):
     if fresh:
         text = _neutralize_monitor_rules(text)
         # a fresh machine has no ~/Projects/arch-ai: Super+A / Ctrl+Alt+A open Eclipse AI (the Eclipse edition
-        # of Arch AI). A migrated home keeps its own bind (Arthur's Arch AI) untouched.
+        # of Arch AI). A migrated home keeps its own bind (Arch AI) untouched.
         text = re.sub(r'hl\.dsp\.exec_cmd\("[^"]*arch-ai/bin/arch-ai-toggle"\)',
                       'hl.dsp.exec_cmd("eclipse-ai-toggle")',
                       text)
@@ -100,7 +100,7 @@ def patch_hyprland(home, fresh=False):
 
 
 def _neutralize_monitor_rules(text):
-    """Comment out workspace rules and mirrors that name Arthur's outputs (DP-1 / HDMI-A-1).
+    """Comment out workspace rules and mirrors that name the author's outputs (DP-1 / HDMI-A-1).
     On other screens they would pin workspaces 1-10 to a monitor that does not exist."""
     out, block, depth = [], [], 0
     lines = text.split("\n")
@@ -121,7 +121,7 @@ def _neutralize_monitor_rules(text):
                 j += 1
             blob = "\n".join(chunk)
             if re.search(r'"(DP-1|HDMI-A-1)"', blob) and 'output   = ""' not in blob:
-                out.append("-- arclight: machine-specific (Arthur's Alienware on DP-1 + HDMI-A-1), off on this machine:")
+                out.append("-- arclight: machine-specific (the author's dual-monitor DP-1 + HDMI-A-1 setup), off on this machine:")
                 out += ["-- " + c for c in chunk]
                 i = j + 1
                 continue
@@ -157,7 +157,7 @@ def install_theme(home):
 
 def backfill_sun(tok_dir):
     """Eclipse OS templates use a `sun` token group (focus rings, selection, progress, glows).
-    Older theme files (e.g. Arthur's own) don't have it: add one built from the theme's own accent,
+    Older theme files (e.g. hand-made ones) don't have it: add one built from the theme's own accent,
     so those themes look exactly as before and theme-apply never fails on an unknown token."""
     n = 0
     for f in sorted(Path(tok_dir).glob("*.json")):
@@ -253,7 +253,7 @@ def install_wallpapers(home):
 
 
 def set_wallpaper(home, name=DEFAULT_WALLPAPER, placeholder=False):
-    """Point Arthur's wallpaper script state at an Arclight wallpaper.
+    """Point the wallpaper script state at an Arclight wallpaper.
     ~/.cache/current-wallpaper is a text file holding the path; current-wallpaper-lock is a symlink."""
     wp = home / "Pictures/wallpapers" / name
     if not wp.exists():
@@ -362,9 +362,10 @@ GUIDE_MARK_E = "<!-- arclight:end -->"
 GUIDE = f"""{GUIDE_MARK_B}
 ## This machine runs Eclipse OS (AI-native Arch, codename Arclight)
 
-You have full control of this computer through the `arclight` MCP tools (or the `arc` CLI). Read
+You can operate this computer through the `arclight` MCP tools (or the `arc` CLI). Read
 `/etc/arclight/AGENTS.md` once per session for the details. Short version:
-- Root work never prompts: `packages`, `services`, `files`, `machine`, `run root=true` (or `arc root CMD`).
+- Reading is open. Root work (`packages`, `services`, system `files`, `machine`, `run root=true`, `arc root CMD`)
+  asks the person at the computer for their administrator password. Never type or ask for it yourself.
 - Every setting: `settings search` / `settings set` (applies live + persists). Prefer it to editing configs.
 - Eyes and hands on the whole desktop: `screenshot` (any window, any workspace), `see`, `ui press`,
   `input`, `input_sequence`, `apps`, `games`. Verify every UI action with a new screenshot.

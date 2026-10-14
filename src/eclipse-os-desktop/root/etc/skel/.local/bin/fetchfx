@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # fetchfx - fastfetch, but flying through space
-# made live on tty2 by Claude for Arthur
+# animated fetch for the terminal
 
 import curses, math, random, re, subprocess, time
 

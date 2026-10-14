@@ -1,8 +1,9 @@
 """arclightd: the root half of Arclight's AI interface.
 
 Serves packages, services, logs, files, machine settings, snapshots and arbitrary root
-commands on /run/arclight/arclightd.sock to members of the `arclight` group, with no
-password prompt. Every call is appended to /var/log/arclight/actions.jsonl together
+commands on /run/arclight/arclightd.sock to members of the `arclight` group. Reading is open
+to them; every change asks for the administrator password through polkit (system/authz.py),
+unless the owner turned on passwordless admin. Every call is appended to /var/log/arclight/actions.jsonl together
 with the process chain that made it (so the log shows whether Claude, Codex or a
 human ran it). Secrets are masked before writing and the log is 0600 (arclight.redact).
 """
@@ -18,7 +19,7 @@ from .. import __version__
 from ..rpc import API, serve
 from ..util import SYSTEM_SOCK, LOG_DIR, ETC_DIR, jdump
 from .. import redact
-from . import pkg, svc, files, sysconf, snap
+from . import authz, pkg, svc, files, sysconf, snap
 
 CONFIG = ETC_DIR / "arclightd.json"
 DEFAULTS = {"auto_snapshot": True, "snapshot_keep": 30, "socket_group": "arclight"}
@@ -103,6 +104,7 @@ def build_api():
     actions = LOG_DIR / "actions.jsonl"
     events = LOG_DIR / "events.jsonl"
     api.on_call = make_logger(actions)
+    api.authorize = authz.authorize      # admin actions need the owner's password (polkit), see authz.py
 
     def pre_pkg(label, kw):
         if load_config().get("auto_snapshot") and snap.supported():

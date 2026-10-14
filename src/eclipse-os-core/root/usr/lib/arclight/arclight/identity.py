@@ -1,4 +1,4 @@
-"""The operating system's name. Arthur chooses it during install (required step in the advanced
+"""The operating system's name. The owner chooses it during install (required step in the advanced
 install); "Eclipse OS" is only the default (Arclight is the codename and the internal name: commands,
 packages and paths keep it). The name flows into os-release (so fastfetch, hostnamectl,
 GNOME/KDE-style "About" pages show it), the login banner, the boot menu and the EFI boot entry.

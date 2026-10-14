@@ -1,6 +1,6 @@
 """arclight-pkgsync: install the packages the installer could not (AUR ones, or everything when it was
 offline). Runs as root at boot while /var/lib/arclight/pending-packages.txt is not empty; AUR packages
-are built as the first regular user through yay (no password: arclight-asroot)."""
+are built as the first regular user through yay (its pacman steps run through arclight-asroot with the job's token)."""
 import json
 import os
 import pwd

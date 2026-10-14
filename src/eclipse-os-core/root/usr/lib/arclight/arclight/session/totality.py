@@ -301,7 +301,7 @@ def _keep(pid):
 def _exec_root(cmd):
     try:
         from .. import client as C
-        r = C.call("exec", cmd=cmd, timeout=20)
+        r = C.call("exec", cmd=cmd, timeout=20, _interactive=False)   # never a password popup during Totality
         return r.get("code") == 0
     except Exception:
         return False

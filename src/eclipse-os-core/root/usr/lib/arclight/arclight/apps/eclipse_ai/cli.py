@@ -21,7 +21,7 @@ USAGE = """usage: eclipse-ai                                    open the window
        eclipse-ai --work-for DURATION --gui GOAL...  same, but inside the Eclipse AI window
        eclipse-ai --root-queue                       show commands waiting for you (need root)
        eclipse-ai --clear-root-queue                 delete that script
-       eclipse-ai --run-root-queue                   run the plain sudo lines in it as root (no password)
+       eclipse-ai --run-root-queue                   run the plain sudo lines in it as root (one password prompt)
        eclipse-ai --runs                             list past runs
 DURATION: 10m, 45m, 1h, 1h30m, 3h.   Stop a run with q, Esc or Ctrl+C."""
 
@@ -169,7 +169,7 @@ def root_cmd(argv: list[str]) -> int:
     ctx = _root_ctx()
     cmds, rest = elevate.queue_split()
     if cmds:
-        print(f"Running {len(cmds)} root command{'s' if len(cmds) != 1 else ''} from {rootq.SCRIPT} (no password):")
+        print(f"Running {len(cmds)} root command{'s' if len(cmds) != 1 else ''} from {rootq.SCRIPT} (the system asks for your password):")
         for c in cmds:
             print(f"  {c}")
     r = elevate.run_queue(ctx, confirm=False)
@@ -231,5 +231,5 @@ def main(argv: list[str] | None = None) -> int:
             subprocess.run(["systemctl", "--user", "--no-ask-password", "stop", config.OLLAMA_UNIT], capture_output=True, timeout=30)
     print("\n" + run.summary_for_chat())
     if elevate.queue_split()[0]:
-        print("Run the plain sudo lines as root (no password):  eclipse-ai --run-root-queue")
+        print("Run the plain sudo lines as root (one password prompt):  eclipse-ai --run-root-queue")
     return 0 if run.outcome in ("finished", "timeout") else 1

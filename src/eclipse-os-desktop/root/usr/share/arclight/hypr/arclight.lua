@@ -3,7 +3,7 @@
 --     -- arclight:begin ... require("arclight") ... -- arclight:end
 -- This file ships with the eclipse-os-desktop package (/usr/share/arclight/hypr/arclight.lua).
 -- To customise it, copy it to ~/.config/hypr/arclight.lua: that copy wins.
--- Nothing here replaces one of Arthur's binds; it only adds new ones.
+-- Nothing here replaces one of the user's binds; it only adds new ones.
 
 local M = {}
 
@@ -232,6 +232,15 @@ hl.window_rule({
     match   = { class = "^dev\\.arclight\\..*$" },
     opacity = "1.0 override 1.0 override",
 })
+-- The administrator password prompt (polkit-gnome, see hyprpolkitagent.service.d/eclipse.conf): centered, on
+-- top, on every workspace, so a request is never hidden behind other windows.
+hl.window_rule({
+    name   = "arclight-polkit-prompt",
+    match  = { class = "^(polkit-gnome-authentication-agent-1|hyprpolkitagent|org.hyprland.hyprpolkitagent)$" },
+    float  = true,
+    center = true,
+    pin    = true,
+})
 -- Settings and Welcome draw their own glass header (with a close button): no second title bar.
 hl.window_rule({
     name  = "arclight-own-header",
@@ -261,7 +270,7 @@ hl.layer_rule({ name = "arclight-totality", match = { namespace = "^arclight-tot
 -- Eclipse Settings (everything the AI can change, as a GUI)
 hl.bind(mainMod .. " + I",         hl.dsp.exec_cmd("arclight-settings"))
 hl.bind("CTRL + ALT + I",          hl.dsp.exec_cmd("arclight-settings"))
--- Eclipse AI (the Eclipse edition of Arthur's Arch AI): Super+A / Ctrl+Alt+A open it, or focus it.
+-- Eclipse AI (the Eclipse edition of Arch AI): Super+A / Ctrl+Alt+A open it, or focus it.
 -- Your own hyprland.lua wins: when it already binds one of these keys (a fresh install's points at
 -- eclipse-ai-toggle already; a migrated home's may open Arch AI), that key is left alone here, because
 -- two binds on one key would both fire.

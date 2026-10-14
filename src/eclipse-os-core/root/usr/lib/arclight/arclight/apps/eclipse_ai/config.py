@@ -25,11 +25,12 @@ BACKUP_SUFFIX = ".eclipse-ai.bak"
 ARCH_DATA = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "arch-ai"
 ARCH_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "arch-ai" / "config.json"
 
-# Eclipse names in the window instead of real model names (same idea as Arch AI's Arch names):
-# Crescent = the quick everyday model, Diamond Ring = the stronger one, Corona = the biggest local one,
-# Totality = the strongest (cloud-backed, shown only by this name).
+# Friendly names for the local models (the picker also shows the real model and that it runs on this PC):
+# Crescent = the quick everyday model, Diamond Ring = the stronger one, Corona = the biggest local one.
+# The optional cloud model is always shown as what it is: "Codex (cloud)" (ultra.NAME).
 MODEL_NAMES = {"qwen3.5:9b": "Eclipse Crescent", "gemma4:12b": "Eclipse Diamond Ring",
-               "gpt-oss:20b": "Eclipse Corona", "ultra": "Eclipse Totality"}
+               "gpt-oss:20b": "Eclipse Corona"}
+CLOUD_NAME = "Codex (cloud)"
 
 DEFAULTS = {
     # Swap the model here (or from the picker in the window). Anything `ollama pull`-ed works.
@@ -44,7 +45,7 @@ DEFAULTS = {
     "max_tool_rounds": 8,
     "font_size": 11,          # pt; Ctrl+plus / Ctrl+minus in the app
     "window": [980, 720],     # remembered on close
-    # "ask": root commands run through arclightd after a yes in the window (no password).
+    # "ask": root commands run through arclightd after a yes in the window (and the administrator password).
     # "queue": never run root, only add it to the root review script.
     "root_mode": "ask",
     # the model the "Get the AI model" button downloads on a machine without one
@@ -55,12 +56,12 @@ DEFAULTS = {
 
 
 def display_name(cfg: dict, model: str, index: int = 0) -> str:
+    if model == "ultra":                       # never renamed, not even by an older config file
+        return CLOUD_NAME
     names = dict(MODEL_NAMES)
-    names.update(cfg.get("model_names") or {})
+    names.update({k: v for k, v in (cfg.get("model_names") or {}).items() if k != "ultra"})
     if model in names:
         return names[model]
-    if model == "ultra":
-        return "Eclipse Totality"
     return "Eclipse Penumbra" if index == 0 else f"Eclipse Penumbra {index + 1}"
 
 
@@ -131,7 +132,7 @@ def import_arch_ai() -> str:
 
 
 def models_dir() -> Path:
-    """Where the model server keeps models: Arthur's Arch AI models when a migrated home has them
+    """Where the model server keeps models: Arch AI models when a migrated home has them
     (shared, never moved), else Eclipse AI's own folder."""
     arch = ARCH_DATA / "models"
     if (arch / "manifests").is_dir():

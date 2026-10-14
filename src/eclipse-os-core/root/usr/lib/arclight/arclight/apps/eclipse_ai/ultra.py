@@ -1,14 +1,12 @@
-"""Eclipse Totality: the strongest model in the picker, shown only by its Eclipse name.
-(Arch AI's "Arch Linux Ultra", by Arthur, with the Eclipse name.)
+"""Codex (cloud): OpenAI's Codex CLI as an optional model in Eclipse AI's picker, named as what it is.
 
-Developer note (never shown in the window): Totality is the Codex CLI (`codex exec --json`),
-using Arthur's ChatGPT login in ~/.codex, so these chats go to the cloud (Arthur's one exception
-to "local only", kept from Arch AI). Codex runs its own tools inside its workspace-write sandbox
-rooted at ~ (no sudo). Eclipse AI's approval cards and hard_block() do NOT see those commands; the
-prompt below asks it to avoid the same things. Root commands come back as `ROOT: sudo …` lines,
-which Eclipse AI runs through its normal path (approval card + arclightd, or queued in a timed run).
-Every Codex command is shown as a tool card and written to the log (kind "ultra"). The window and
-the replies never name the engine (`disguise()`).
+It is offered only when the Codex CLI is installed and signed in (`codex login status`). Messages, and the
+files Codex reads while working, go to OpenAI's servers; the picker, the chat and every reply say so.
+Codex runs its own commands inside its own sandbox (workspace-write, rooted at ~, no root). Those commands do
+NOT go through Eclipse AI's approval cards: the window says this when Codex is chosen, and shows every command
+as it runs (and writes it to the log, kind "codex"). Root commands come back as `ROOT: sudo …` lines, which
+Eclipse AI runs through its normal path: an approval card, then arclightd (which asks for the administrator
+password unless passwordless admin is on), or queued in a timed run.
 """
 import json
 import os
@@ -21,43 +19,40 @@ import time
 
 from . import config, store, tools
 
-MODEL_ID = "ultra"
-NAME = "Eclipse Totality"
+MODEL_ID = "ultra"          # the id kept in config files from older versions; shown as NAME
+NAME = "Codex (cloud)"
 HISTORY = 20          # earlier chat messages sent along
 ROOT_RE = re.compile(r"^\s*ROOT:\s*(sudo\s.+?)\s*$", re.M)
 DONE_RE = re.compile(r"^\s*GOAL DONE:\s*(.+)$", re.M)
-# The window never names the engine; errors are cleaned of these words.
-_HIDE = re.compile(r"codex|openai|chatgpt|gpt-[\w.-]+", re.I)
-
-
-# Reply text: whatever it says about itself becomes the Eclipse name (deterministic, the prompt alone is not enough).
-_SELF = [
-    (re.compile(r"\b(?:OpenAI(?:'s)?\s+)?(?:Codex|ChatGPT)\b(?:\s*(?:CLI|agent))?(?:,?\s*(?:\(|an? AI (?:model|assistant) )?(?:based on|built on|powered by|running on|using)\s+(?:OpenAI(?:'s)?\s+)?GPT-[\w-]+(?:\.\d+)*\)?)?", re.I), NAME),
-    (re.compile(r"\b(?:OpenAI(?:'s)?\s+)?GPT-[\w-]+(?:\.\d+)*(?:\s+model)?", re.I), NAME),
-    (re.compile(r"\bOpenAI\b", re.I), "Eclipse AI"),
-]
-
-
-def disguise(text: str) -> str:
-    for rx, new in _SELF:
-        text = rx.sub(new, text)
-    n = re.escape(NAME)
-    text = re.sub(rf"({n})\s+(?:running|using|on|based on|built on|powered by|via)\s+{n}", r"\1", text)
-    text = re.sub(rf"({n})\s+model\b", r"\1", text)
-    return re.sub(rf"({n})(?:[,\s]+(?:and|or)?\s*{n})+", r"\1", text)
+CLOUD_NOTE = ("Codex (cloud): your messages, and the files it reads while working, go to OpenAI. It runs commands itself "
+              "in its own sandbox (your home folder, never root) without approval cards; each one is shown here as it runs. "
+              "Root commands still need your yes and your password.")
+_STATUS = {"t": 0.0, "ok": False}
 
 
 def available() -> bool:
-    return bool(shutil.which("codex")) and (config.HOME / ".codex" / "auth.json").exists()
+    """Installed and signed in (checked with `codex login status`, at most once a minute)."""
+    if not shutil.which("codex"):
+        return False
+    if time.time() - _STATUS["t"] < 60:
+        return _STATUS["ok"]
+    try:
+        r = subprocess.run(["codex", "login", "status"], capture_output=True, text=True, timeout=15)
+        last = [l for l in (r.stdout + r.stderr).splitlines() if l.strip() and not l.startswith("WARNING")]
+        ok = r.returncode == 0 and bool(last) and "not logged in" not in last[-1].lower()
+    except (OSError, subprocess.SubprocessError):
+        ok = False
+    _STATUS.update(t=time.time(), ok=ok)
+    return ok
 
 
 def _rules(autonomous: bool) -> str:
-    base = f"""You are "{NAME}", the strongest model of Eclipse AI, the desktop assistant of Eclipse OS (Arthur's AI-native Arch Linux: Hyprland Wayland compositor, DankMaterialShell bar, ghostty terminal). If asked which model you are, say you are {NAME}, Eclipse AI's top model. Never name any other model, company or tool behind you.
+    base = f"""You are OpenAI's Codex, used as the cloud model inside Eclipse AI, the desktop assistant of Eclipse OS (an AI-native Arch Linux: Hyprland Wayland compositor, DankMaterialShell bar, ghostty terminal). If asked what you are, say so plainly: Codex by OpenAI, running in the cloud.
 
-The user is dyslexic and often dictates: guess the meaning of typos and act. Never correct spelling. Write short, clear sentences and plain words. Short bullet lists are fine. No markdown headers.
+The user may type fast or dictate: guess the meaning of typos and act. Never correct spelling. Write short, clear sentences and plain words. Short bullet lists are fine. No markdown headers.
 
 You can run shell commands and edit files inside the home folder yourself. Rules:
-- Never use sudo, su, doas or pkexec: they cannot work here. If something truly needs root, do not run it; put each root command on its own line at the very end of your reply, exactly like `ROOT: sudo <command>` (plain sudo on every part, no `cd x && sudo …`, never with yay or paru). The app shows it to the user, who clicks yes; it then runs as root (no password).
+- Never use sudo, su, doas or pkexec: they cannot work here. If something truly needs root, do not run it; put each root command on its own line at the very end of your reply, exactly like `ROOT: sudo <command>` (plain sudo on every part, no `cd x && sudo …`, never with yay or paru). The app shows it to the user, who clicks yes and types their password; it then runs as root.
 - Never: delete ~, ~/.config, ~/.local, ~/Projects or other whole top-level folders; disk or partition tools; reboot, poweroff, suspend or ending the session; killing Hyprland, pipewire, wireplumber, ghostty, kitty, the bar or ollama; git push --force; piping a download into a shell.
 - Before changing a config file, read it and change only the needed lines. Before overwriting an existing file, copy it to <file>.eclipse-ai.bak.
 - Check your work with a real command. After acting, confirm what you did in one short line. If something fails, say what failed and one fix.
@@ -84,7 +79,6 @@ def build_prompt(messages: list[dict], autonomous: bool) -> str:
             lines.append(f"{who}: {str(m['content']).strip()[:2000]}")
         parts.append("Conversation so far:\n" + "\n\n".join(lines))
     parts.append(("Current step:\n" if autonomous else "Current request from the user:\n") + str(last.get("content", "")).strip())
-    parts.append(f"Remember: in this app you are {NAME}. If the user asks what you are, answer only that you are {NAME}, Eclipse AI's top model.")
     return "\n\n".join(parts)
 
 
@@ -115,7 +109,7 @@ def _kill(proc: subprocess.Popen) -> None:
 
 def run(agent, chat, ctx, on_text, on_tool_start, on_tool_done, on_status, use_tools: bool = True,
         num_predict: int | None = None) -> str:
-    """Agent.run for Ultra. Returns the final reply text (ROOT: lines removed)."""
+    """Agent.run for Codex (cloud). Returns the final reply text (ROOT: lines removed)."""
     if not available():
         on_text(f"⚠ {NAME} is not set up on this machine.")
         return ""
@@ -135,7 +129,7 @@ def run(agent, chat, ctx, on_text, on_tool_start, on_tool_done, on_status, use_t
         proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 cwd=str(config.HOME), env=env, start_new_session=True, text=True, errors="replace")
     except Exception as e:
-        on_text(f"⚠ {NAME} could not start ({_HIDE.sub('engine', str(e))})")
+        on_text(f"⚠ {NAME} could not start ({e})")
         return ""
     agent.proc = proc
     sel = selectors.DefaultSelector()
@@ -174,15 +168,15 @@ def run(agent, chat, ctx, on_text, on_tool_start, on_tool_done, on_status, use_t
         pass
     agent.proc = None
 
-    reply = disguise("\n\n".join(t for t in texts if t.strip()).strip())
+    reply = "\n\n".join(t for t in texts if t.strip()).strip()
     roots = ROOT_RE.findall(reply)
     done = DONE_RE.search(reply)
     shown = ROOT_RE.sub("", reply).strip()
     if shown:
         on_text(shown)
     if not reply and not stopped:
-        store.log_command("ultra reply", proc.returncode, "\n".join(errors) + "\n" + err[-3000:], "ultra")
-        on_text(f"⚠ {NAME} did not answer" + (f": {_HIDE.sub('engine', errors[-1])[:200]}" if errors else "."))
+        store.log_command("codex reply", proc.returncode, "\n".join(errors) + "\n" + err[-3000:], "codex")
+        on_text(f"⚠ {NAME} did not answer" + (f": {errors[-1][:200]}" if errors else "."))
     chat.messages.append({"role": "assistant", "content": reply or shown})
     chat.save()
 
@@ -223,7 +217,7 @@ def _event(line, cards, texts, errors, ctx, on_tool_start, on_tool_done, on_stat
             agent.tool_calls_made += 1
         out = item.get("aggregated_output", "") or ""
         rc = item.get("exit_code")
-        store.log_command(shown, rc, out, "ultra")
+        store.log_command(shown, rc, out, "codex")
         if out:
             on_tool_done(c["card"], out, None)
         on_tool_done(c["card"], None, tools.ToolResult(f"exit code: {rc}\n{out.strip() or '(no output)'}", ok=(rc == 0)))
@@ -235,7 +229,7 @@ def _event(line, cards, texts, errors, ctx, on_tool_start, on_tool_done, on_stat
         card = on_tool_start("edit_file", shown, {})
         agent.tool_calls_made += 1
         ok = item.get("status", "completed") == "completed"
-        store.log_command(shown, 0 if ok else 1, json.dumps(changes)[:3000], "ultra")
+        store.log_command(shown, 0 if ok else 1, json.dumps(changes)[:3000], "codex")
         on_tool_done(card, None, tools.ToolResult("changed: " + paths, ok=ok))
     elif kind == "item.completed" and itype == "agent_message":
         texts.append(item.get("text", ""))

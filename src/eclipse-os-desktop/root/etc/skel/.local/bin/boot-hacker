@@ -67,7 +67,7 @@ for i in "${!lines[@]}"; do
     done
 done
 
-msg="ACCESS GRANTED -- welcome, ${USER:-arthur}"
+msg="ACCESS GRANTED -- welcome, ${USER:-friend}"
 printf '\e[%d;%dH%s%s' $((top + ${#lines[@]} + 1)) $((cols / 2 - ${#msg} / 2)) "$W" "$msg"
 skip 0.8
 printf '%s\e[2J\e[H' "$R"

@@ -89,7 +89,7 @@ def actions():
     ai = ai_enabled()
     acts = []
     if Path("/run/archiso").exists():
-        acts.append(("Install it", "On this PC", "Goes next to your current Arch. Your old system stays as it is.",
+        acts.append(("Install it", "On this PC", "Next to your current system, or on its own drive. You choose.",
                      lambda: run("arclight-installer-gui"), True))
     elif files_missing():
         if ai:
@@ -159,8 +159,8 @@ def window_main(argv=None):
         t.add_css_class("title")
         line = Gtk.Box(width_request=300, halign=Gtk.Align.START)
         line.add_css_class("corona-line")
-        s = Gtk.Label(label="Your desktop, your keys, your apps. " + ("The AI can now run the whole machine for you."
-                      if ai else "Claude Code can run the whole machine for you."),
+        s = Gtk.Label(label="Your desktop, your keys, your apps. " + ("The AI can help run the whole machine, and asks you first."
+                      if ai else "AI agents like Claude Code can help run the machine, and ask you first."),
                       xalign=0, wrap=True)
         s.add_css_class("sub")
         for w in (k, t, line, s):

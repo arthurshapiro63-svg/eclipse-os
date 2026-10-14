@@ -1,4 +1,4 @@
-"""Friendly settings with plain names. Each one maps onto the real mechanism Arthur's desktop
+"""Friendly settings with plain names. Each one maps onto the real mechanism the desktop
 already uses (Hyprland options, theme-apply, the wallpaper script, wpctl, powerprofilesctl,
 nmcli, bluetoothctl, shell-switch) so nothing behaves differently from doing it by hand."""
 import json
@@ -342,7 +342,7 @@ def register(reg):
     reg.add(Setting("wallpaper.living_sunset", "string", "Living wallpaper: sunset time (HH:MM, default 19:00)",
                     lambda: st.get("wallpaper.living_sunset", "19:00"), _living_set("wallpaper.living_sunset"),
                     group="wallpaper"))
-    reg.add(Setting("shell.current", "enum", "Desktop shell (bar, dock, launcher): DankMaterialShell or arthur-shell",
+    reg.add(Setting("shell.current", "enum", "Desktop shell (bar, dock, launcher): DankMaterialShell or the Eclipse Quickshell shell",
                     _shell_get, _shell_set, choices=["dms", "arthur"], group="shell"))
 
     # audio
@@ -381,7 +381,7 @@ def register(reg):
     reg.add(Setting("idle.screen_off_after", "int", "Turn screens off after N idle seconds (0 = never)",
                     _idle_get("dpms"), _idle_set("dpms"), min=0, max=86400, unit="s"))
 
-    # system scope (arclightd, no password)
+    # system scope (arclightd: changes ask for the administrator password)
     reg.add(Setting("system.hostname", "string", "Machine name", lambda: _sys("sys.hostname")["hostname"],
                     lambda v: _sys("sys.hostname", name=v), scope="system"))
     reg.add(Setting("system.timezone", "string", "Timezone (Region/City)", lambda: _sys("sys.timezone").get("Timezone"),
@@ -394,6 +394,11 @@ def register(reg):
     reg.add(Setting("system.swappiness", "int", "vm.swappiness (0-200)",
                     lambda: int(_sys("sys.sysctl", key="vm.swappiness").get("vm.swappiness", 60)),
                     lambda v: _sys("sys.sysctl", key="vm.swappiness", value=str(int(v))), min=0, max=200, scope="system"))
+    reg.add(Setting("system.sudo_nopasswd", "bool",
+                    "Passwordless admin (unsafe): sudo, polkit and the AI's root actions stop asking for your password; "
+                    "any program running as you can then change the whole system",
+                    lambda: _sys("sys.nopasswd").get("enabled"),
+                    lambda v: _sys("sys.nopasswd", enable=bool(v)), scope="system"))
     reg.add(Setting("system.auto_snapshot", "bool", "Snapshot the system before package changes (btrfs installs)",
                     lambda: _sys("config.get").get("auto_snapshot"),
                     lambda v: _sys("config.set", key="auto_snapshot", value=bool(v)), scope="system"))

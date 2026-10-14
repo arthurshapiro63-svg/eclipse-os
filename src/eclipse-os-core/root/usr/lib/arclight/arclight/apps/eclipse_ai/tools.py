@@ -3,7 +3,7 @@
 
 Every action goes through `ctx.approve()` unless safety.py says it is read-only.
 Root: in chat with root_mode "ask" (the default) a plain `sudo …` (or `arc root …`) command shows an
-approval card with the exact command; after a yes it runs as root through arclightd, with no password
+approval card with the exact command; after a yes it runs as root through arclightd, which asks for the administrator password
 (elevate.py). Timed runs, root_mode "queue" and mixed commands append it to the root review script
 (rootq.py) instead, reported back as "not run". Packages go through arclightd's package service, which
 makes a restore point first (btrfs installs). A terminal sudo prompt is never possible: sudo reaching
@@ -303,7 +303,7 @@ def use_root(ctx: ToolContext) -> bool:
 
 def root_command(ctx: ToolContext, command: str, why: str, title: str = "Run as root", preview: str = "",
                  timeout: float | None = None) -> ToolResult:
-    """A command that needs root: approval card with the exact command, then arclightd runs it (no password).
+    """A command that needs root: approval card with the exact command, then arclightd runs it (after the system password prompt).
     Queued instead in a timed run, with root_mode "queue", for mixed commands, or when arclightd is down."""
     command = safety.normalize_root(command)
     blocked = safety.hard_block(command)
@@ -317,7 +317,7 @@ def root_command(ctx: ToolContext, command: str, why: str, title: str = "Run as 
         return queue_root(ctx, command, why, reason)
     if not elevate.available():
         return queue_root(ctx, command, why, "the Eclipse root service (arclightd) is not running")
-    ask(ctx, Approval(title, elevate.strip_sudo(command), ["runs as root", "no password needed"],
+    ask(ctx, Approval(title, elevate.strip_sudo(command), ["runs as root", elevate.password_note()],
                       preview=preview, heading=f"{title}?", yes="Yes, run as root", root=True))
     return elevate.run_as_root([command], ctx, why=why, timeout=timeout)
 
@@ -484,7 +484,7 @@ def _pkg_root(ctx: ToolContext, title: str, shown: str, reasons: list[str], meth
     if not elevate.available():
         return queue_root(ctx, queued_cmd, why, "the Eclipse package service (arclightd) is not running")
     ask(ctx, Approval(title, shown, reasons, heading=f"{title}?", yes="Yes, do it", root=True))
-    ctx.on_output("working through Eclipse's package service (no password)…\n")
+    ctx.on_output("working through Eclipse's package service (the system asks for your password)…\n")
     try:
         r = pkg_job(method, params, ctx.on_output, lambda: ctx.cancelled)
     except TimeoutError as e:
@@ -519,7 +519,7 @@ def install_packages(args: dict, ctx: ToolContext) -> ToolResult:
     if not todo:
         return ToolResult(f"already installed: {', '.join(already)}")
     r = _pkg_root(ctx, "Install packages", f"install {' '.join(todo)}",
-                  ["installs software for the whole system", "a restore point is made first", "no password needed"],
+                  ["installs software for the whole system", "a restore point is made first", elevate.password_note()],
                   "pkg.install", {"names": todo, "aur": True}, f"sudo pacman -S --needed --noconfirm {_pk(todo)}",
                   "install_packages", queue_in_runs=False)
     if already:
@@ -532,7 +532,7 @@ def remove_packages(args: dict, ctx: ToolContext) -> ToolResult:
     if not pkgs:
         return ToolResult("error: no packages given", ok=False)
     return _pkg_root(ctx, "Remove packages", f"remove {' '.join(pkgs)}",
-                     ["removes software (and what only it needed)", "a restore point is made first", "no password needed"],
+                     ["removes software (and what only it needed)", "a restore point is made first", elevate.password_note()],
                      "pkg.remove", {"names": pkgs}, f"sudo pacman -Rns --noconfirm {_pk(pkgs)}", "remove_packages",
                      queue_in_runs=True)
 
@@ -573,7 +573,7 @@ def update_system(args: dict, ctx: ToolContext) -> ToolResult:
     else:
         try:
             r = _pkg_root(ctx, "Update the system", UPDATE_SHOWN,
-                          [f"{len(lines)} updates", "a restore point is made first", "no password needed"],
+                          [f"{len(lines)} updates", "a restore point is made first", elevate.password_note()],
                           "pkg.upgrade", {"aur": True}, "sudo pacman -Syu --noconfirm", "update_system", queue_in_runs=True)
         except PermissionError as e:
             r = ToolResult(f"not run: {e}", ok=False)
@@ -634,7 +634,7 @@ def system_info(args: dict, ctx: ToolContext) -> ToolResult:
         "configs": {"hyprland": "~/.config/hypr/hyprland.lua (Eclipse layer: /usr/share/arclight/hypr/arclight.lua)",
                     "bar": "DankMaterialShell", "terminal": "~/.config/ghostty/config", "eclipse-ai": str(config.CONFIG_FILE)},
         "eclipse_tools": "find_settings / change_setting; `arc --help` for the machine API; `arc doctor` checks everything",
-        "root_commands": "run as root through arclightd after your yes (no password)" if config.load().get("root_mode", "ask") != "queue" else "queued only",
+        "root_commands": "run as root through arclightd after your yes and your password" if config.load().get("root_mode", "ask") != "queue" else "queued only",
         "root_review_script": str(rootq.SCRIPT) + (f" ({len(rootq.pending())} waiting)" if rootq.pending() else " (empty)"),
     }
     store.log_command("system_info", 0, "", "info")

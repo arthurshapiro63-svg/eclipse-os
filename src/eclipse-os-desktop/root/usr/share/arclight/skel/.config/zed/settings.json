@@ -8,7 +8,7 @@
 // ~/.config/theme/templates/zed-theme.tmpl). "Midnight Blue" is the glass
 // variant (blurred; Hyprland supplies the blur), "Midnight Blue Opaque" the
 // solid fallback. Fonts match the token fonts (Inter / JetBrainsMono Nerd Font);
-// sizes 16/15 are Arthur's own choice and are kept on purpose.
+// sizes 16/15 are kept on purpose.
 {
   "cli_default_open_behavior": "existing_window",
   "ui_font_family": "Inter",

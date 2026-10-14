@@ -8,6 +8,7 @@ post_install() {
   systemctl enable --now arclightd.service 2>/dev/null || systemctl enable arclightd.service 2>/dev/null
   systemctl --global enable arclight-watch.service 2>/dev/null
   echo ">>> Arclight core installed. Log out and back in for the 'arclight' group to apply."
+  echo ">>> Changes through Eclipse (sudo, the AI, Settings, the store) ask for your password."
 }
 post_upgrade() {
   systemd-sysusers arclight.conf 2>/dev/null
@@ -16,6 +17,13 @@ post_upgrade() {
   PYTHONPATH=/usr/lib/arclight python3 -m arclight.redact --scrub /var/log/arclight/actions.jsonl \
     /var/log/arclight/events.jsonl /var/log/arclight/pkgsync.log /var/log/arclight-install.log \
     /home/*/.local/state/arclight/actions.jsonl /home/*/.local/share/eclipse-ai/log/commands.log >/dev/null 2>&1 || true
+  # 0.1.2: sudo, polkit and arclightd ask for the password by default (the old package rule gave the arclight
+  # group root with no password). Passwordless admin is an opt-in now: Settings -> System, or
+  # `arc settings set system.sudo_nopasswd true`. The live USB still turns it on for itself.
+  if [ "$(vercmp "$2" 0.1.2)" -lt 0 ] && [ ! -e /etc/sudoers.d/90-eclipse-nopasswd ]; then
+    echo ">>> Eclipse OS 0.1.2: sudo and the AI's root actions now ask for your password."
+    echo ">>> To go back to no password (less safe): Settings -> System -> Passwordless admin."
+  fi
   # restart later: this upgrade may itself be running inside arclightd (arc update / the AI's pkg.install)
   systemd-run --quiet --on-active=8 --unit="arclightd-restart-$$" systemctl try-restart arclightd.service 2>/dev/null \
     || systemctl try-restart arclightd.service 2>/dev/null

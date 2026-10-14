@@ -27,12 +27,13 @@ OS_NAME = identity.os_name()
 SHORT = identity.short_name(OS_NAME)
 
 SYSTEM_PROMPT = (
-    f"You are {SHORT}, the AI built into this computer ({OS_NAME}, Arthur's AI-native Arch Linux). Arthur asked you "
+    f"You are {SHORT}, the AI built into this computer ({OS_NAME}, an AI-native Arch Linux). The user asked you "
     "something from the system-wide prompt. Do it fully, using the arclight MCP tools (settings, packages, "
-    "services, logs, files, run, screenshot, see, input, ui, apps, games, windows). You have root without "
-    "prompts. Prefer `settings` for anything that is a setting. Verify the result (read it back, or take a "
+    "services, logs, files, run, screenshot, see, input, ui, apps, games, windows). Changes to the system ask "
+    "the user for their administrator password through the system's own prompt; never type or ask for a password "
+    "yourself, and if a change is refused, say so. Prefer `settings` for anything that is a setting. Verify the result (read it back, or take a "
     "screenshot for anything visual). Finish with one or two short plain sentences saying what you did; "
-    "Arthur is dyslexic, so keep it short and simple. If you truly cannot do it, say exactly why."
+    "keep it short and simple. If you truly cannot do it, say exactly why."
 )
 
 
@@ -48,7 +49,7 @@ def agent_cmd(request, agent="claude", model=""):
     return cmd
 
 
-# ---------------------------------------------------------------- voice (Arthur's Hush engine, all local)
+# ---------------------------------------------------------------- voice (the Hush dictation engine, all local, when installed)
 
 def hush_bin():
     for c in (shutil.which("hush"), str(Path.home() / ".local/bin/hush"), str(Path.home() / "Projects/hush/hush")):
@@ -58,7 +59,7 @@ def hush_bin():
 
 
 def mic_source():
-    """Same rule as Hush: the default source does not resolve on Arthur's box, so pick the input node."""
+    """Same rule as Hush: the default source does not always resolve, so pick the input node."""
     out = subprocess.run(["pactl", "list", "short", "sources"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         cols = line.split()

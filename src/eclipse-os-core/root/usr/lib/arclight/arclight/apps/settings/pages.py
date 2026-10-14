@@ -745,7 +745,8 @@ class System(Page):
         p = prefs_page()
         settings_groups(p, data["settings"], ctx, [
             ("This computer", ["system.hostname", "system.timezone", "system.ntp", "system.locale"]),
-            ("Safety and memory", ["system.auto_snapshot", "system.swappiness"])])
+            ("Safety and memory", ["system.auto_snapshot", "system.swappiness"]),
+            ("Administrator password", ["system.sudo_nopasswd"])])
         i = data["info"]
         g = group("Overview")
         up = int(i.get("uptime_s", 0))

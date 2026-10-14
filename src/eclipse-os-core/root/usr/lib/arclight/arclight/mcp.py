@@ -16,7 +16,9 @@ from . import client as C
 PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 INSTRUCTIONS = """Arclight is an AI-native Arch Linux. These tools ARE the machine: use them instead of guessing shell commands.
-- Root work (packages, services, /etc, any file, `run` with root=true) needs no password and never prompts.
+- Reading is open. Root work (packages, services, /etc, system files, `run` with root=true) asks the person at the
+  computer for their administrator password (unless they turned on passwordless admin). Never type or ask for a
+  password yourself; if a change is refused, stop and tell the user.
 - Settings: `settings search` finds anything (friendly keys like appearance.gaps_out, audio.volume, plus every
   Hyprland option as hypr.<section>.<option>). `settings set` applies live AND persists.
 - Seeing: `screenshot` (target screen | active | window:<address or class> | monitor:NAME | region:X,Y,W,H).
@@ -27,7 +29,7 @@ INSTRUCTIONS = """Arclight is an AI-native Arch Linux. These tools ARE the machi
   image's own pixel coordinates; the server converts them.
 - After acting, verify with a fresh screenshot. Use `input_sequence` for timed game input (hold keys, camera).
 - Every action is logged (`history`); file writes keep the previous version (`files history` / `files revert`).
-- `stop` releases all keys/buttons. Arthur's panic key Super+Shift+Escape does the same.
+- `stop` releases all keys/buttons. The panic key Super+Shift+Escape does the same.
 """
 
 
@@ -61,7 +63,7 @@ TOOLS = [
     {"name": "files", "description": "Any file on the machine as root (keeps history so writes/deletes can be reverted). action: read (path) | write (path, content) | edit (path, old, new) | list (path) | stat | delete (path, recursive) | mkdir | copy (src,dst) | move (src,dst) | chmod (path, mode, owner, group) | history (path?) | revert (history_id).",
      "inputSchema": S({"action": STR, "path": STR, "content": STR, "old": STR, "new": STR, "src": STR, "dst": STR,
                        "mode": STR, "owner": STR, "group": STR, "recursive": BOOL, "history_id": STR, "offset": INT, "max_bytes": INT}, ["action"])},
-    {"name": "run", "description": "Run a shell command. root=true runs it as root (no password). Returns exit code, stdout, stderr.",
+    {"name": "run", "description": "Run a shell command. root=true runs it as root (asks for the administrator password). Returns exit code, stdout, stderr.",
      "inputSchema": S({"command": STR, "root": BOOL, "cwd": STR, "timeout": d("seconds (default 600)", INT), "input": STR}, ["command"])},
     {"name": "screenshot", "description": "See the screen. target: screen (default) | active | window:<address|class|title text> (works on other workspaces) | monitor:NAME | region:X,Y,W,H. grid=true overlays global coordinates. mark=[x,y] draws a crosshair at a global point. Returns the image plus shot id and scale: to click something you see, call input with shot=<id> and the image's pixel coordinates.",
      "inputSchema": S({"target": STR, "grid": BOOL, "max_width": INT, "cursor": BOOL, "mark": {"type": "array", "items": NUM}}, [])},
@@ -83,12 +85,12 @@ TOOLS = [
      "inputSchema": S({"action": STR, "name": STR, "command": STR, "query": STR, "workspace": STR, "args": {"type": "array", "items": STR}}, ["action"])},
     {"name": "games", "description": "Games (Steam, Godot projects, desktop games). action: list | launch (game) -> waits for the game window | stop (game or window) | mode (state: on|off|toggle|status) -> Totality (Super+G, was game mode): everything but the focus window goes eclipse-dark, effects off, other apps paused, performance power profile; restored exactly when off (also automatic while a game is open). Then screenshot the window and play with input/input_sequence.",
      "inputSchema": S({"action": STR, "game": STR, "window": STR, "state": STR, "args": {"type": "array", "items": STR}}, ["action"])},
-    {"name": "routines", "description": "Things the AI does by itself on a schedule (systemd user timers; a notification shows each result). Use when Arthur asks for something regularly ('every morning...'). action: list | add (name, schedule: 'daily 09:00' | 'weekdays 08:30' | 'sun 10:00' | 'every 2h' | any systemd OnCalendar, prompt: the request to run) | remove (id) | run (id, now) | enable (id) | disable (id) | log (id).",
+    {"name": "routines", "description": "Things the AI does by itself on a schedule (systemd user timers; a notification shows each result). Use when the user asks for something regularly ('every morning...'). action: list | add (name, schedule: 'daily 09:00' | 'weekdays 08:30' | 'sun 10:00' | 'every 2h' | any systemd OnCalendar, prompt: the request to run) | remove (id) | run (id, now) | enable (id) | disable (id) | log (id).",
      "inputSchema": S({"action": STR, "id": STR, "name": STR, "schedule": STR, "prompt": STR}, ["action"])},
     {"name": "wait", "description": "Wait for something: for=window (match regex) | text (text on screen, OCR) | stable (screen stops changing). timeout seconds.",
      "inputSchema": S({"for": {"type": "string", "enum": ["window", "text", "stable"]}, "match": STR, "text": STR, "target": STR, "timeout": NUM}, ["for"])},
     {"name": "clipboard", "description": "action: get | set (text).", "inputSchema": S({"action": STR, "text": STR}, ["action"])},
-    {"name": "notify", "description": "Send Arthur a desktop notification.", "inputSchema": S({"title": STR, "body": STR, "urgency": STR}, ["title"])},
+    {"name": "notify", "description": "Send the user a desktop notification.", "inputSchema": S({"title": STR, "body": STR, "urgency": STR}, ["title"])},
     {"name": "snapshots", "description": "btrfs system snapshots (whole-disk installs): action list | create (label) | rollback (id) | delete (id). Package changes snapshot automatically.",
      "inputSchema": S({"action": STR, "label": STR, "id": STR}, ["action"])},
     {"name": "history", "description": "What has been done: kind=actions (every API call: who/what/result; filter agent) | events (service failures, package transactions) | packages (pacman log).",

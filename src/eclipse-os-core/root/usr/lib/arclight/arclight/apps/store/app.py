@@ -1,7 +1,7 @@
 """Eclipse Store: find, install, open, remove and update apps, in plain words.
 
 Official Arch packages, the AUR and (when flatpak is installed) Flathub in one list. Installs go through
-arclightd, so there is no password prompt and a restore point is made first (btrfs installs).
+arclightd (the system asks for the administrator password) and a restore point is made first (btrfs installs).
 
   arclight-store                    the store
   arclight-store --demo             fake data and fake installs (nothing is touched, no root, no network)

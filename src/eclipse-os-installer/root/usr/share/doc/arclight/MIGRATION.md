@@ -51,7 +51,7 @@ read; only their presence is recorded. Your copy from 2026-10-08 is in this repo
 The installer measures your home and makes a plan. You can change it before anything is written.
 
 ```
-arclight-migrate plan --home /home/arthur --into /new/home/arthur > plan.json
+arclight-migrate plan --home /home/alex --into /new/home/alex > plan.json
 ```
 
 Each top-level folder (and each folder inside `~/.local/share`, `~/.config`, `~/Projects`) is one of:
@@ -104,7 +104,7 @@ timestamps, so the restore is exact. Secrets were never uploaded.
    It downloads every archive, checks its checksum, unpacks it, then compares every file with the list
    recorded at backup time and prints the number of differences (0 = identical).
 3. Bring the secrets over from the old system (side-by-side install: it is at `/host`):
-   `arclight-backup secrets --source /host/home/arthur --into $HOME`
+   `arclight-backup secrets --source /host/home/alex --into $HOME`
 4. Put the Arclight layer back on top of your restored config: `arclight-firstrun --force`
 
 Just one folder: `arclight-backup restore --into $HOME --only Projects/pycraft` (repeat `--only` for more).

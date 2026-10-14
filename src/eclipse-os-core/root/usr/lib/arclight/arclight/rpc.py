@@ -31,6 +31,7 @@ class API:
         self.methods = {}
         self.docs = {}
         self.on_call = None  # hook(method, params, peer, result|None, error|None, seconds)
+        self.authorize = None  # hook(method, params, peer, interactive): raises RPCError when not allowed
 
     def method(self, name, doc=None):
         def deco(fn):
@@ -55,6 +56,9 @@ class API:
             return {"id": mid, "error": {"type": "BadParams", "message": "params must be an object"}}
         try:
             kwargs = dict(params)
+            interactive = kwargs.pop("_interactive", True) is not False
+            if self.authorize:
+                await loop.run_in_executor(None, lambda: self.authorize(name, kwargs, peer, interactive))
             if "_peer" in _params(fn):
                 kwargs["_peer"] = peer
             if inspect.iscoroutinefunction(fn):

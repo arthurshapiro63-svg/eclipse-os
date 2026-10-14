@@ -394,7 +394,7 @@ def cmd_verify(a):
 
 
 def cmd_secrets(a):
-    """Copy the secrets (never on Drive) from the old system's home, e.g. /host/home/arthur on a side-by-side
+    """Copy the secrets (never on Drive) from the old system's home, e.g. /host/home/alex on a side-by-side
     Arclight install. Keys, logins, tokens, browser passwords/cookies, SECRETFILES."""
     import fnmatch
     import shutil

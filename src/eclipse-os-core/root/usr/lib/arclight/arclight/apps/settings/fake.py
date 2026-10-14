@@ -101,6 +101,7 @@ def _initial():
         S("power.profile", "enum", "Power profile", "performance", choices=["power-saver", "balanced", "performance"]),
         S("shell.current", "enum", "Desktop shell (bar, dock, launcher): DankMaterialShell or arthur-shell", "dms",
           choices=["dms", "arthur"]),
+        S("system.sudo_nopasswd", "bool", "Passwordless admin (unsafe)", False, scope="system"),
         S("system.auto_snapshot", "bool", "Snapshot the system before package changes (btrfs installs)", True, scope="system"),
         S("system.hostname", "string", "Machine name", "archbox", scope="system"),
         S("system.locale", "string", "System language (e.g. en_US.UTF-8)", "en_US.UTF-8", scope="system"),

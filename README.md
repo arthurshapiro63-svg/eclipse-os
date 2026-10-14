@@ -14,6 +14,21 @@ You can ask the AI for stuff in plain words, like "make the dock icons bigger" (
 
 ![Ask](screenshots/ask.jpg)
 
+### The AI
+
+Eclipse AI (Super+A) is built in. By default it runs a model on your own computer through [Ollama](https://ollama.com), so your chats stay on your PC. The first time you open it, it offers to download the model (about 6.6 GB).
+
+It can run commands, edit files, install apps and change settings, but you stay in charge:
+
+- Before it changes anything, it shows you the exact command and you click yes or no.
+- Anything that needs root also asks for your password, through the normal system prompt. The AI can't answer that prompt for you. (If you really want no password, you can turn on "Passwordless admin" in Settings, but then any program running as you can change the whole system.)
+- When it changes a file, it keeps the old one next to it (`name.eclipse-ai.bak`). Changes made through Eclipse's own file tools (Settings, or agents over MCP) keep their old version too, and `arc file revert` puts them back.
+- If you install Eclipse on a whole drive, it uses btrfs and makes a snapshot before package changes, so you can roll back.
+
+If you have Codex installed and signed in, it also shows up in the model list as "Codex (cloud)". That one is OpenAI's, so your messages leave your computer. It runs its own commands in a sandbox in your home folder without the yes/no cards (you still see each one). Root commands still need your yes and your password.
+
+You can also hook up your own agent, like Claude Code or Codex, through the built-in MCP server (`arclight-mcp`). Those aren't on the ISO, so you install them yourself.
+
 There's also an app store for games and apps, and a settings app with six themes.
 
 ![Store](screenshots/store.jpg)
@@ -27,7 +42,7 @@ There's also an app store for games and apps, and a settings app with six themes
 3. Boot from the USB. It goes straight to the desktop.
 4. Click "Install it". It can go next to your current system or on its own drive.
 
-The AI part needs an AI agent like Claude Code. It isn't on the ISO, so you install it yourself after.
+The built-in AI needs its model the first time (about 6.6 GB). Optional agents like Claude Code or Codex aren't on the ISO, so you install them yourself after.
 
 ## Keys
 
@@ -35,6 +50,7 @@ The AI part needs an AI agent like Claude Code. It isn't on the ISO, so you inst
 |---|---|
 | Super+G | Totality on/off |
 | Super+Space | App launcher |
+| Super+A | Eclipse AI |
 | Super+Shift+A | Ask the AI |
 | Super+I | Settings |
 

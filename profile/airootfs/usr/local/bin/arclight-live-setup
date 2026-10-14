@@ -5,6 +5,8 @@ set -u
 U=eclipse
 id "$U" >/dev/null 2>&1 && exit 0
 systemd-sysusers
+# the live USB stays passwordless (it has no password to ask for); the installer turns this off again
+PYTHONPATH=/usr/lib/arclight python3 -c 'from arclight.system import sysconf; sysconf.set_nopasswd(True)' || true
 groups=()
 for g in wheel arclight video audio input storage uucp network; do getent group "$g" >/dev/null && groups+=("$g"); done
 useradd -M -u 1000 -U -G "$(IFS=,; echo "${groups[*]}")" -s /bin/bash -c "Eclipse" "$U"

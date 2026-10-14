@@ -1,3 +1,4 @@
-# Arclight: the owner and the AI agents run root commands without password prompts.
-# Remove this file (or `arc set system.sudo_nopasswd false`) to get prompts back.
-%arclight ALL=(ALL:ALL) NOPASSWD: ALL
+# Eclipse OS: members of the arclight group may use sudo with their own password (the default).
+# Passwordless admin is an opt-in: Settings -> System -> "Passwordless admin" (system.sudo_nopasswd),
+# which adds /etc/sudoers.d/90-eclipse-nopasswd and a matching polkit rule.
+%arclight ALL=(ALL:ALL) ALL

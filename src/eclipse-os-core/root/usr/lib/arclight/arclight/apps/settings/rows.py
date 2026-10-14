@@ -37,7 +37,7 @@ FRIENDLY = {
                           {"labels": {"dwindle": "Split in halves", "master": "One big, the rest stacked",
                                       "scrolling": "Side by side, scrolling"}}),
     "shell.current": ("Desktop shell", "The bar, dock and launcher",
-                      {"labels": {"dms": "DankMaterialShell", "arthur": "Arthur's shell"}}),
+                      {"labels": {"dms": "DankMaterialShell", "arthur": "Eclipse Quickshell"}}),
     "audio.volume": ("Volume", None, {}),
     "audio.muted": ("Mute speakers", None, {}),
     "audio.mic_volume": ("Microphone volume", None, {}),
@@ -71,6 +71,13 @@ FRIENDLY = {
     "system.locale": ("Language and region", "For example en_US.UTF-8", {}),
     "system.swappiness": ("Swap use", "Higher uses the disk sooner. Normal:\u00a060", {}),
     "system.auto_snapshot": ("Restore point before updates", "Only on whole-disk installs", {}),
+    "system.sudo_nopasswd": ("Passwordless admin", "Unsafe. Off: sudo, apps and the AI ask for your password before "
+                             "changing the system. On: any program running as you can change the whole system", {
+                                 "confirm_on": ("Turn off the password for admin?",
+                                                "Programs that run as you, AI agents included, could then install "
+                                                "software, change system files and become root without asking you. "
+                                                "Only do this if you trust everything you run. The system asks for "
+                                                "your password one last time to turn it on.")}),
     "ai.enabled": ("Use the AI features", "Ask, Eclipse AI, Fix with AI and routines. Off: no AI anywhere", {}),
     "appearance.eclipse_look": ("Eclipse look", "The eclipse theme, wallpaper and boot animation. "
                                 "Off: plain graphite, same features", {}),
@@ -145,7 +152,7 @@ def _decorate(row, s):
     row.set_tooltip_text((f"{s['description']}\n" if s.get("description") else "") + f"Name for the AI: {s['key']}")
     if s.get("scope") == "system":
         icon = Gtk.Image.new_from_icon_name("system-lock-screen-symbolic")
-        icon.set_tooltip_text("Changes the whole system. No password needed")
+        icon.set_tooltip_text("Changes the whole system. Asks for your password")
         icon.add_css_class("dim-label")
         row.add_suffix(icon)
     return row
@@ -187,6 +194,17 @@ def make_row(s, ctx):
 
             def ok(_res):
                 state["v"] = new
+            if new and extra.get("confirm_on"):
+                heading, body = extra["confirm_on"]
+                dlg = Adw.AlertDialog(heading=heading, body=body)
+                dlg.add_response("cancel", "Keep the password")
+                dlg.add_response("on", "Turn it off anyway")
+                dlg.set_response_appearance("on", Adw.ResponseAppearance.DESTRUCTIVE)
+                dlg.set_default_response("cancel")
+                dlg.set_close_response("cancel")
+                dlg.connect("response", lambda _d, resp: ctx.apply(key, new, revert, ok) if resp == "on" else revert())
+                dlg.present(row.get_root())
+                return
             ctx.apply(key, new, revert, ok)
         row.connect("notify::active", on_active)
         return _decorate(row, s)

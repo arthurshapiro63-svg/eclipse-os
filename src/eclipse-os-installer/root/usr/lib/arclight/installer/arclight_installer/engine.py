@@ -557,7 +557,7 @@ class Engine:
         for s in filter(None, enable):
             self.chroot(f"systemctl enable {s}", check=False)
         self.chroot("systemctl --global enable arclight-watch.service", check=False)
-        # the services Arthur has on (from the old system if it is here, else from the record on the USB)
+        # the services the user has on (from the old system if it is here, else from the record on the USB)
         wanted = set()
         for wants in OLD.glob("etc/systemd/system/*.target.wants/*") if OLD.is_dir() else []:
             wanted.add(wants.name)
@@ -573,21 +573,23 @@ class Engine:
         self.report["services_enabled_from_old_setup"] = on
         if on:
             self.log(f"turned on {len(on)} of your services: {', '.join(on)}")
-        # a locked root must not lock Arthur out of the rescue shell
+        # a locked root must not lock the owner out of the rescue shell
         for unit in ("emergency", "rescue"):
             d = T / f"etc/systemd/system/{unit}.service.d"
             d.mkdir(parents=True, exist_ok=True)
             (d / "arclight.conf").write_text("[Service]\nEnvironment=SYSTEMD_SULOGIN_FORCE=1\n")
         self.chroot("systemd-sysusers", check=False)
-        if not self.c.get("sudo_nopasswd", True):
-            p = T / "etc/sudoers.d/10-arclight"
-            if p.exists():
-                p.write_text("# NOPASSWD disabled at install time\n%arclight ALL=(ALL:ALL) ALL\n")
-        else:
-            (T / "etc/sudoers.d").mkdir(exist_ok=True)
-            w = T / "etc/sudoers.d/00-wheel"
-            w.write_text("%wheel ALL=(ALL:ALL) ALL\n")
-            w.chmod(0o440)
+        # sudo and polkit ask for the password (the live USB's passwordless admin does not come along);
+        # passwordless admin only when the plan asks for it (Settings -> System can turn it on later)
+        from arclight.system import sysconf
+        sysconf.set_nopasswd(False, str(T))
+        (T / "etc/sudoers.d").mkdir(exist_ok=True)
+        w = T / "etc/sudoers.d/00-wheel"
+        w.write_text("%wheel ALL=(ALL:ALL) ALL\n")
+        w.chmod(0o440)
+        if self.c.get("sudo_nopasswd", False):
+            sysconf.set_nopasswd(True, str(T))
+            self.log("passwordless admin is ON (asked for in the install plan)")
 
     def create_user(self):
         u = self.c["user"]
@@ -731,7 +733,7 @@ class Engine:
         self.log(f"carried over: {', '.join(moved) or 'nothing'}")
 
     def packages(self):
-        """Arthur's explicit package list from the old system (repo packages online now; AUR + offline later)."""
+        """The user's explicit package list from the old system (repo packages online now; AUR + offline later)."""
         want = list(self.c.get("packages", {}).get("extra", []))
         if self.c.get("packages", {}).get("from_old_system") and (OLD / "var/lib/pacman/local").is_dir():
             out = self.sh(["pacman", "--root", str(OLD), "--dbpath", str(OLD / "var/lib/pacman"), "-Qqe"], check=False)

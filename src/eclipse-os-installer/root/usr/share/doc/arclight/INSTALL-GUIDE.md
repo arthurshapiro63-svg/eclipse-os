@@ -493,11 +493,11 @@ loader in between, and it is first in the boot order.
 **Goal:** your account with a password, root locked (or with its own password),
 and a sudo rule you wrote yourself.
 
-1. Make your user (change `arthur` if you like):
+1. Make your user (change `alex` to your name):
 
    ```
-   arch-chroot /mnt useradd -m -G wheel -s /bin/bash arthur
-   arch-chroot /mnt passwd arthur
+   arch-chroot /mnt useradd -m -G wheel -s /bin/bash alex
+   arch-chroot /mnt passwd alex
    ```
 
 2. Lock root (you will use sudo instead):
@@ -509,9 +509,9 @@ and a sudo rule you wrote yourself.
 3. Write the sudo rule. Pick one:
 
    ```
-   # sudo asks for your password:
+   # sudo asks for your password (the default, and the safe choice):
    echo '%wheel ALL=(ALL:ALL) ALL' > /mnt/etc/sudoers.d/10-wheel
-   # or never asks (the default here, full power for you and your AI):
+   # or never asks (anything running as you, AI agents included, can then become root silently):
    echo '%wheel ALL=(ALL:ALL) NOPASSWD: ALL' > /mnt/etc/sudoers.d/10-wheel
    ```
 
@@ -538,18 +538,18 @@ and a sudo rule you wrote yourself.
 
 | Part | What it does |
 |---|---|
-| group `arclight` | members talk to the root daemon with no password |
+| group `arclight` | members talk to the root daemon; reading is open, every change asks for your password |
 | `arclightd` | the root half of the API: packages, services, logs, files, settings |
 | `arclight-session` | the desktop half: screen, mouse, keyboard, windows (starts with Hyprland) |
 | uinput rule | lets the AI's virtual keyboard and mouse exist |
-| polkit rule | no password popups for the `arclight` group |
+| polkit action | `dev.arclight.admin`: the password prompt the root daemon uses |
 | MCP server | how Claude Code and Codex reach all of it |
 
 1. Create the `arclight` group and add yourself:
 
    ```
    arch-chroot /mnt systemd-sysusers
-   arch-chroot /mnt gpasswd -a arthur arclight
+   arch-chroot /mnt gpasswd -a alex arclight
    ```
 
 2. Start the root daemon at every boot:
@@ -565,25 +565,25 @@ and a sudo rule you wrote yourself.
    cp -a /usr/local/share/applications /mnt/usr/local/share/ 2>/dev/null
    ```
 
-3. Look at the uinput and polkit rules (they came with `eclipse-os-core`):
+3. Look at the uinput rule and the polkit action (they came with `eclipse-os-core`):
 
    ```
    cat /mnt/usr/lib/udev/rules.d/70-arclight-uinput.rules
    cat /mnt/usr/lib/modules-load.d/arclight.conf
-   cat /mnt/usr/share/polkit-1/rules.d/49-arclight.rules
+   cat /mnt/usr/share/polkit-1/actions/dev.arclight.admin.policy
    ```
 
 4. Register the MCP server for Claude Code and Codex, by hand:
 
    ```
-   arch-chroot /mnt runuser -u arthur -- bash -c '
+   arch-chroot /mnt runuser -u alex -- bash -c '
      echo "{\"mcpServers\": {\"arclight\": {\"type\": \"stdio\", \"command\": \"arclight-mcp\", \"args\": []}}}" > ~/.claude.json
      mkdir -p ~/.codex
      printf "[mcp_servers.arclight]\ncommand = \"arclight-mcp\"\n" >> ~/.codex/config.toml'
    ```
 
-   (The quick way that does the same and more: `arch-chroot /mnt runuser -u arthur --
-   arclight-firstrun --home /home/arthur --offline --force`.)
+   (The quick way that does the same and more: `arch-chroot /mnt runuser -u alex --
+   arclight-firstrun --home /home/alex --offline --force`.)
 
 5. Check:
 
@@ -595,7 +595,7 @@ and a sudo rule you wrote yourself.
 
 ## Stage 11: Desktop
 
-**Goal:** Arthur's Hyprland desktop with the Eclipse look, starting when you log in.
+**Goal:** the Eclipse Hyprland desktop with the Eclipse look, starting when you log in.
 
 1. Install the desktop, the browser, the editor, graphics drivers and the rite
    tool itself (for stage 13). Pick the Vulkan driver for your GPU: `vulkan-radeon`
@@ -607,15 +607,15 @@ and a sudo rule you wrote yourself.
        mesa vulkan-radeon bluez bluez-utils
    ```
 
-2. Put Arthur's desktop config into your home (the files from the Eclipse OS
+2. Put the Eclipse desktop config into your home (the files from the Eclipse OS
    default home), then fill in your home path:
 
    ```
-   arch-chroot /mnt bash -c 'cp -aT /usr/share/arclight/skel /home/arthur && chown -R arthur:arthur /home/arthur'
-   arch-chroot /mnt runuser -u arthur -- arclight-firstrun --home /home/arthur --offline --force
+   arch-chroot /mnt bash -c 'cp -aT /usr/share/arclight/skel /home/alex && chown -R alex:alex /home/alex'
+   arch-chroot /mnt runuser -u alex -- arclight-firstrun --home /home/alex --offline --force
    ```
 
-3. Log in automatically on the first console (like Arthur's PC). The login
+3. Log in automatically on the first console. The login
    starts Hyprland through `~/.bash_profile`:
 
    ```
@@ -623,7 +623,7 @@ and a sudo rule you wrote yourself.
    cat > /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf <<'EOF'
    [Service]
    ExecStart=
-   ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noreset --noclear --autologin arthur - ${TERM}
+   ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noreset --noclear --autologin alex - ${TERM}
    EOF
    ```
 
@@ -659,7 +659,7 @@ then verified file by file. Skip it with `rite skip 12`.
    `skip`:
 
    ```
-   arclight-migrate plan --home /old/home/arthur --into /mnt/home/arthur --no-share > /root/plan.json
+   arclight-migrate plan --home /old/home/alex --into /mnt/home/alex --no-share > /root/plan.json
    ```
 
 3. Read it and change it if you want (`"action": "copy"` / `"skip"`):

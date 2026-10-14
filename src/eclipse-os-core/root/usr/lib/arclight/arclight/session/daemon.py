@@ -84,6 +84,10 @@ LOGGED = re.compile(r"^(settings\.(set|reset)|app\.(launch|close)|win\.(?!list|g
                     r"input\.(click|type|key|drag|hold|paste)|ui\.(press|set|type)|hypr\.dispatch|ws\.(go|move))")
 
 
+INJECTING = ("input.", "ui.", "hypr.dispatch", "win.focus", "clip.set")
+_INJECTED = {"last": None}
+
+
 def build_api():
     api = API("arclight-session")
     from pathlib import Path
@@ -99,6 +103,19 @@ def build_api():
         if LOGGED.match(method):
             _log(method, params, peer, result, err, seconds)
     api.on_call = on_call
+
+    def mark_injection(method, params, peer, interactive=True):
+        # BEFORE an injected click / key / accessibility action runs: approval prompts (Eclipse AI's cards)
+        # ask session.input_activity and refuse a "yes" that arrives right after AI-driven input
+        if method.startswith(INJECTING):
+            _INJECTED["last"] = time.monotonic()
+    api.authorize = mark_injection
+
+    @api.method("session.input_activity")
+    def input_activity():
+        """Seconds since this daemon last injected input (clicks, keys, typing, accessibility actions) for an
+        AI; null when it never did."""
+        return {"seconds_since": None if _INJECTED["last"] is None else time.monotonic() - _INJECTED["last"]}
 
     @api.method("session.actions")
     def session_actions(n=50, agent=None, method=None):
@@ -524,7 +541,7 @@ def build_api():
 
     @api.method("notify.send")
     def notify_send(title, body="", urgency="normal", icon="arclight"):
-        """Desktop notification to Arthur."""
+        """Desktop notification to the user."""
         run(["notify-send", "-a", identity.os_name(), "-u", urgency, "-i", icon, title, body], check=False)
         return {"sent": title}
 

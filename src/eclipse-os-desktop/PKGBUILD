@@ -1,12 +1,12 @@
 # Eclipse OS desktop. The files under root/ are installed as-is.
 pkgname=eclipse-os-desktop
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Eclipse OS desktop: Hyprland (Lua config) + DankMaterialShell + Eclipse glass theme, wallpapers, default home"
 arch=('any')
 url="https://github.com/arthurshapiro63-svg/eclipse-os"
 license=('MIT')
-depends=('eclipse-os-core' 'plymouth' 'hyprland' 'hypridle' 'hyprlock' 'hyprpolkitagent'
+depends=('eclipse-os-core' 'plymouth' 'hyprland' 'hypridle' 'hyprlock' 'hyprpolkitagent' 'polkit-gnome'
          'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk' 'dms-shell' 'quickshell' 'awww' 'matugen'
          'ghostty' 'ghostty-shell-integration' 'ghostty-terminfo' 'kitty' 'thunar' 'thunar-archive-plugin'
          'thunar-volman' 'tumbler' 'gvfs' 'ffmpegthumbnailer' 'wofi' 'cliphist' 'satty' 'grim' 'slurp'

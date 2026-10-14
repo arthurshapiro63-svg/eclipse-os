@@ -1,5 +1,6 @@
-"""arclight-asroot CMD...: run one command as root through arclightd (a sudo replacement with no
-password, for members of the arclight group). yay uses it as its --sudo."""
+"""arclight-asroot CMD...: run one command as root through arclightd (a sudo replacement for members of the
+arclight group: it asks for the administrator password like every arclightd change, unless passwordless admin
+is on). yay uses it as its --sudo; inside an AUR job arclightd already authorized, it passes that job's token."""
 import os
 import sys
 
@@ -16,7 +17,8 @@ def main():
     if args[0] == "-v":
         return 0  # 'sudo -v' credential refresh: nothing to refresh
     try:
-        r = C.call("exec", cmd=args, cwd=os.getcwd(), timeout=7200)
+        extra = {"_job_token": os.environ["ARCLIGHT_JOB_TOKEN"]} if os.environ.get("ARCLIGHT_JOB_TOKEN") else {}
+        r = C.call("exec", cmd=args, cwd=os.getcwd(), timeout=7200, **extra)
     except C.Unavailable as e:
         print(f"arclight-asroot: {e}", file=sys.stderr)
         return 1

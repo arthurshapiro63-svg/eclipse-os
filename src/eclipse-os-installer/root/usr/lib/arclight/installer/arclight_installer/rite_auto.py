@@ -151,7 +151,7 @@ def plan(n, st):
                 "--loader '\\EFI\\Linux\\arclight-linux.efi'"], []
     if n == 9:
         if "user" not in f:
-            f["user"] = re.sub(r"[^a-z0-9_-]", "", ask("Your user name", "arthur").lower()) or "arthur"
+            f["user"] = re.sub(r"[^a-z0-9_-]", "", ask("Your user name", "user").lower()) or "user"
             rite.save(st)
         ask_secret(f"Password for {f['user']}", "user")
         u = f["user"]
@@ -160,7 +160,7 @@ def plan(n, st):
                 "arch-chroot /mnt passwd -l root",
                 "echo '%wheel ALL=(ALL:ALL) ALL' > /mnt/etc/sudoers.d/10-wheel",
                 "chmod 440 /mnt/etc/sudoers.d/10-wheel", "arch-chroot /mnt visudo -c"], ["password hidden"]
-    u = f.get("user", "arthur")
+    u = f.get("user", "user")
     if n == 10:
         return ["arch-chroot /mnt systemd-sysusers", f"arch-chroot /mnt gpasswd -a {u} arclight",
                 "arch-chroot /mnt systemctl enable arclightd",

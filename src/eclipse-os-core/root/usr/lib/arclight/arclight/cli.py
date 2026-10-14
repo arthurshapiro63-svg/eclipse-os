@@ -6,7 +6,7 @@
   arc svc list|status|start|stop|restart|reload|enable|disable|mask|unmask UNIT [--user]
   arc log [UNIT] [--since 1h] [--prio err] [--grep X] [-n 100] [--user]   |  arc log errors
   arc file read|write|edit|ls|stat|rm|mkdir|cp|mv|chmod|history|revert ...
-  arc root CMD...                  run a command as root (no password)
+  arc root CMD...                  run a command as root (asks for the admin password)
   arc screen shot [TARGET] [--grid] [-o FILE] | ocr | find TEXT | watch | pixel X Y
   arc input click X Y | move X Y | type TEXT | key CHORD | scroll N | drag X1 Y1 X2 Y2 | hold KEY MS
   arc win list|active|focus|close|float|tile|fullscreen|move|resize|to ...

@@ -2,7 +2,7 @@
 
 They are appended to one script at a fixed path: during timed runs (nobody is watching), with
 root_mode "queue", when arclightd is not reachable, and for mixed commands that cannot run as one
-root batch. Arthur can read it and run it himself, or run the eligible lines as one batch through
+root batch. The user can read it and run it themselves, or run the eligible lines as one batch through
 arclightd (elevate.run_queue: the card after a timed run, the menu item or `eclipse-ai --run-root-queue`);
 lines that succeed are then removed. Nothing here ever calls sudo.
 """
@@ -18,7 +18,7 @@ HEADER = """#!/usr/bin/env bash
 # Eclipse AI root review script (made by Eclipse AI).
 # Every command below needed root and was not run right away (timed run, mixed command, ...).
 # Read it and delete what you do not want. Then either let Eclipse AI run the plain `sudo` lines
-# (menu -> "Run root queue now", or `eclipse-ai --run-root-queue`; no password, lines that work are
+# (menu -> "Run root queue now", or `eclipse-ai --run-root-queue`; one password prompt, lines that work are
 # removed), or run it yourself, e.g.:   arc root bash ~/.local/share/eclipse-ai/root-review.sh
 # Delete this file (or `eclipse-ai --clear-root-queue`) once you are done.
 set -u

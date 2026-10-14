@@ -111,8 +111,8 @@ def probe_main(argv):
 
 def demo_scan():
     arch = {"name": "Arch Linux", "id": "arch", "root_subdir": "", "free": 395 * GiB, "size": 930 * GiB, "used": 432 * GiB,
-            "homes": ["arthur"], "users": [{"name": "arthur", "uid": 1000, "gid": 1000, "gecos": "Arthur",
-                                            "home": "/home/arthur", "shell": "/bin/bash"}],
+            "homes": ["alex"], "users": [{"name": "alex", "uid": 1000, "gid": 1000, "gecos": "Alex",
+                                            "home": "/home/alex", "shell": "/bin/bash"}],
             "hostname": "archbox", "timezone": "America/New_York", "locale": "en_US.UTF-8", "keymap": "us",
             "has_arclight": False}
     return [
@@ -129,7 +129,7 @@ def demo_scan():
     ]
 
 
-DEMO_HOME = [  # (path, GiB) shaped like Arthur's real home (docs/MIGRATION.md)
+DEMO_HOME = [  # (path, GiB) shaped like a typical real home (docs/MIGRATION.md)
     (".local/share/Steam", 172), ("vms", 65), ("Projects/apex-learners", 41), ("Unity", 29), (".cache", 22),
     ("Projects/primal-rpg", 19), (".local/share/arch-ai", 18), ("Projects/arclight", 16), (".ollama", 14),
     ("Projects/apex-velocity", 12), ("blender", 11), (".local/share/PrismLauncher", 9.5), ("Videos", 8.4),
@@ -148,7 +148,7 @@ def demo_plan(free, uname):
             it.action, it.reason = "skip", "Cache or trash. It comes back by itself"
         items.append(it)
     sysb = int(24.6 * GiB)
-    plan = mplan.Plan("/home/arthur", f"/home/{uname}", items, max(0, free - sysb), 15 * GiB, True)
+    plan = mplan.Plan("/home/alex", f"/home/{uname}", items, max(0, free - sysb), 15 * GiB, True)
     mplan.balance(plan)
     return {"plan": json.loads(plan.to_json()), "system_bytes": sysb}
 
@@ -1476,7 +1476,7 @@ def main_gui(demo=False):
         def enter_user(self):
             ou = self.s["old_user"] if self._migrating() else None
             if self.s["uname"] is None or (ou and self.s.get("uname_from") != ou["name"]):
-                self.e_user.set_text((ou or {}).get("name") or "arthur")
+                self.e_user.set_text((ou or {}).get("name") or "")
                 self.s["uname_from"] = (ou or {}).get("name")
             can_keep = bool(self._migrating())
             self.pw_choice.set_visible(can_keep)
@@ -1520,7 +1520,7 @@ def main_gui(demo=False):
             else:
                 self.e_user.remove_css_class("error")
                 self.e_user_hint.remove_css_class("err")
-                self.e_user_hint.set_label("Small letters and digits, like arthur.")
+                self.e_user_hint.set_label("Small letters and digits, like alex.")
             if self.pw_fields.get_visible():
                 p1, p2 = self.e_pw1.get_text(), self.e_pw2.get_text()
                 if not p1:

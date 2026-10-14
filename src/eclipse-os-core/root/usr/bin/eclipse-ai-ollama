@@ -2,7 +2,7 @@
 # The local model server for Eclipse AI (systemd user unit eclipse-ai-ollama.service), the same way
 # Arch AI runs its own (by Arthur): started on demand by the window, stopped when it closes, and as a
 # safety net it stops itself when no Eclipse AI window has been open for 90 seconds.
-# Models: Arthur's Arch AI models when a migrated home has them (~/.local/share/arch-ai/models, shared,
+# Models: Arch AI models when a migrated home has them (~/.local/share/arch-ai/models, shared,
 # never moved), else ~/.local/share/eclipse-ai/models.
 OLLAMA_BIN="$(command -v ollama)"
 if [ -z "$OLLAMA_BIN" ]; then echo "eclipse-ai-ollama: ollama is not installed (pacman -S ollama ollama-vulkan)" >&2; exit 1; fi
@@ -13,7 +13,7 @@ if [ -z "${OLLAMA_MODELS:-}" ]; then
 fi
 export OLLAMA_MODELS
 export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
-export OLLAMA_VULKAN=1          # use the GPU through Vulkan (Radeon iGPU on Arthur's laptop)
+export OLLAMA_VULKAN=1          # use the GPU through Vulkan (AMD/Intel iGPUs too)
 export OLLAMA_IGPU_ENABLE=1     # Ollama skips integrated GPUs unless told otherwise
 export OLLAMA_FLASH_ATTENTION=1
 export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-15m}"   # unload the model after 15 min idle
