@@ -1,3 +1,15 @@
+# Eclipse OS 0.1.2 (ISO respin 0.1.2-2)
+
+The 0.1.2 download was replaced with this respin. It has one wording fix. If you already installed 0.1.2, you don't need to reinstall.
+
+Check the download with `sha256sum -c eclipse-os-0.1.2-2-x86_64.iso.sha256`.
+
+## Changed
+
+- **Eclipse AI's model now knows root needs your password.** The descriptions of the AI's `run_command` and `install_packages` tools (the part the model reads, not the screen) still said root commands ran with no password. They now say that you click yes and then type your password. What you see on screen, and how the password works, were already right in 0.1.2 and haven't changed. Only `eclipse-os-core` changed (0.1.2-2).
+
+---
+
 # Eclipse OS 0.1.2
 
 A safety and honesty release. If you downloaded 0.1.1, please use this one instead. Install it fresh from the ISO.
