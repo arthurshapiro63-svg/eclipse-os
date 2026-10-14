@@ -32,6 +32,14 @@ class Naming(unittest.TestCase):
         self.assertIn("leave this computer", hints["ultra"])
 
 
+class ModelFacingText(unittest.TestCase):
+    def test_tools_never_promise_root_without_a_password(self):
+        from arclight.apps.eclipse_ai import tools
+        for spec in tools.TOOLS:
+            d = str(spec.get("function", spec).get("description", "")).lower()
+            self.assertNotIn("no password", d, spec)
+
+
 class Availability(unittest.TestCase):
     def setUp(self):
         ultra._STATUS.update(t=0.0, ok=False)

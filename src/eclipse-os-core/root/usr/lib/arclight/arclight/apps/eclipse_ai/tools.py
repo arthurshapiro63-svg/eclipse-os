@@ -56,7 +56,7 @@ class ToolResult:
 TOOLS = [
     {"type": "function", "function": {
         "name": "run_command",
-        "description": "Run a bash command on this Eclipse OS (Arch Linux) machine and return its output. Read-only commands run right away; risky ones ask the user first. Prefer user-level ways (inside ~, systemctl --user, ~/.local/bin). If root is truly needed, start the command with plain `sudo` (every part: no `cd x && sudo …`, no `sudo -u`, never with yay/paru): the user sees it, clicks yes, and it runs as root (no password). In timed runs it is queued for the user instead.",
+        "description": "Run a bash command on this Eclipse OS (Arch Linux) machine and return its output. Read-only commands run right away; risky ones ask the user first. Prefer user-level ways (inside ~, systemctl --user, ~/.local/bin). If root is truly needed, start the command with plain `sudo` (every part: no `cd x && sudo …`, no `sudo -u`, never with yay/paru): the user sees it, clicks yes and types their password in the system prompt, and it runs as root. In timed runs it is queued for the user instead.",
         "parameters": {"type": "object", "properties": {
             "command": {"type": "string", "description": "The exact bash command to run."},
         }, "required": ["command"]}}},
@@ -80,7 +80,7 @@ TOOLS = [
         }, "required": ["path", "find", "replace"]}}},
     {"type": "function", "function": {
         "name": "install_packages",
-        "description": "Install packages (official repos and the AUR) through Eclipse's package service. A restore point is made first. The user clicks yes in the window; no password.",
+        "description": "Install packages (official repos and the AUR) through Eclipse's package service. A restore point is made first. The user clicks yes in the window, then types their password in the system prompt.",
         "parameters": {"type": "object", "properties": {
             "packages": {"type": "array", "items": {"type": "string"}},
         }, "required": ["packages"]}}},
